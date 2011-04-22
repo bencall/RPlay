@@ -4,6 +4,6 @@
  *
  */
 public class AudioData {
-	public int ready;
-	public short data;
+	public boolean ready;
+	public byte[] data;
 }

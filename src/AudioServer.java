@@ -7,21 +7,23 @@
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.ServerSocket;
 
 import com.beatofthedrum.alacdecoder.*;
 
 public class AudioServer implements UDPDelegate{
 	// Constantes
-	public static final int BUFFER_FRAMES = 512;
-
-	// Variables d'instances
-	int[]fmtp;					// Sound infos
-	AudioData[] audioBuffer;	// Buffer audio
-	DatagramSocket sock, csock;
+	public static final int BUFFER_FRAMES = 512;	// Total buffer size (number of frame)
+	public static final int START_FILL = 282;		// Alac will wait till there are START_FILL frames in buffer
 	
-	boolean ab_synced = false;	// Is audio synced?
-	int ab_read, ab_write;
+	// Variables d'instances
+	int[]fmtp;								// Sound infos
+	AudioData[] audioBuffer;				// Buffer audio
+	boolean synced = false;
+	boolean decoder_isStopped = false;		//The decoder stops 'cause the isn't enough packet. Waits till buffer is full
+	int readIndex;							//	audioBuffer is a ring buffer. We write at write index and we read at readindex.
+	int writeIndex;
+	int actualBufSize;
+	DatagramSocket sock, csock;
 	
 	public AudioServer(byte[] aesiv, byte[] aeskey, int[] fmtp, int controlPort, int timingPort){
 		this.fmtp = fmtp;
@@ -47,7 +49,9 @@ public class AudioServer implements UDPDelegate{
 			break;
 		}
 		
+		@SuppressWarnings("unused")
 		UDPListener l1 = new UDPListener(sock, this);
+		@SuppressWarnings("unused")
 		UDPListener l2 = new UDPListener(csock, this);
 	}
 	
@@ -90,36 +94,53 @@ public class AudioServer implements UDPDelegate{
 			//seqno is on two byte
 			int seqno = ((int)pktp[2] << 8) + (pktp[3] & 0xff); 
 			this.putPacketInBuffer(seqno, pktp);
-			
 		}
 	}
 	
 	private void putPacketInBuffer(int seqno, byte[] data){
-	    if (!ab_synced) {
-	        ab_write = seqno;
-	        ab_read = seqno - 1;
-	        ab_synced = true;				
+	    // Ring buffer may be implemented in a Hashtable in java (simplier), but is it fast enough?
+		
+		if(!synced){
+			writeIndex = seqno;
+			readIndex = seqno;
+			synced = true;
+		}
+		
+		if (seqno == writeIndex){													// Packet we expected
+			audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);	// With (seqno % BUFFER_FRAMES) we loop from 0 to BUFFER_FRAMES
+			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
+			writeIndex++;
+		} else if(seqno > writeIndex){												// Too early, did we miss some packet between writeIndex and seqno?
+			this.request_resend(writeIndex, seqno);
+			audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);
+			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
+			writeIndex = seqno + 1;
+		} else if(seqno > readIndex){												// readIndex < seqno < writeIndex not yet played but too late. Still ok
+			audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);
+			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
+		} else {
+			System.err.println("Late packet with seq. numb.: " + seqno);			// Really to late
+		}
+		
+		// The number of packet in buffer
+	    actualBufSize = writeIndex - readIndex;
+	    if(actualBufSize<0){	// If write head (tete d'ecriture) is at index 1 and read head (tete de lecture) at 510 for example.
+	    	actualBufSize = actualBufSize + BUFFER_FRAMES;
 	    }
 	    
+	    if(!decoder_isStopped && actualBufSize > START_FILL){
+		    // TODO Signal to alac thread that it is ready
+	    }
 	    
 	}
 	
-	private void alac_decrypt(){
-//	    unsigned char packet[MAX_PACKET];
-//	    assert(len<=MAX_PACKET);
-//
-//	    unsigned char iv[16];
-//	    int i;
-//	    memcpy(iv, aesiv, sizeof(iv));
-//	    for (i=0; i+16<=len; i += 16)
-//	        AES_cbc_encrypt((unsigned char*)buf+i, packet+i, 0x10, &aes, iv, AES_DECRYPT);
-//	    if (len & 0xf)
-//	        memcpy(packet+i, buf+i, len & 0xf);
-//
-//	    int outsize;
-//
-//	    decode_frame(decoder_info, packet, dest, &outsize);
-//
-//	    assert(outsize == FRAME_BYTES);
+	private void request_resend(int writeIndex2, int seqno) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	private byte[] alac_decode(byte[] data){
+		// TODO Auto-generated method stub
+		return null;
 	}
 }
