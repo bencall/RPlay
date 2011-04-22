@@ -19,7 +19,6 @@ public class UDPListener extends Thread{
 		this.socket = socket;
 		this.delegate = delegate;
 		this.start();
-		System.out.println("bbb");
 	}
 	
 	  public void run() {

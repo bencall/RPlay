@@ -20,6 +20,9 @@ public class AudioServer implements UDPDelegate{
 	AudioData[] audioBuffer;	// Buffer audio
 	DatagramSocket sock, csock;
 	
+	boolean ab_synced = false;	// Is audio synced?
+	int ab_read, ab_write;
+	
 	public AudioServer(byte[] aesiv, byte[] aeskey, int[] fmtp, int controlPort, int timingPort){
 		this.fmtp = fmtp;
 		this.initDecoder();
@@ -82,16 +85,23 @@ public class AudioServer implements UDPDelegate{
 				for(int i=0; i<pktp.length-4; i++){
 					pktp[i] = packet.getData()[i+4];
 				}
-				
-				short seqno = pktp[2];
-	            this.putPacketInBuffer(seqno, pktp);
 			}
+			
+			//seqno is on two byte
+			int seqno = ((int)pktp[2] << 8) + (pktp[3] & 0xff); 
+			this.putPacketInBuffer(seqno, pktp);
 			
 		}
 	}
 	
-	private void putPacketInBuffer(short seqno, byte[] data){
-		
+	private void putPacketInBuffer(int seqno, byte[] data){
+	    if (!ab_synced) {
+	        ab_write = seqno;
+	        ab_read = seqno - 1;
+	        ab_synced = true;				
+	    }
+	    
+	    
 	}
 	
 	private void alac_decrypt(){
