@@ -5,5 +5,5 @@
  */
 public class AudioData {
 	public boolean ready;
-	public byte[] data;
+	public int[] data;
 }

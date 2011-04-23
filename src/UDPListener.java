@@ -16,6 +16,7 @@ public class UDPListener extends Thread{
 	UDPDelegate delegate;
 	
 	public UDPListener(DatagramSocket socket, UDPDelegate delegate){
+		super();
 		this.socket = socket;
 		this.delegate = delegate;
 		this.start();
