@@ -197,7 +197,7 @@ public class AudioServer implements UDPDelegate{
 		
 	    int i;
 	    for (i=0; i+16<=data.length; i += 16){
-	    	// Encrypt
+	    	// Decrypt
 	    	this.decryptAES(data, i, 16, packet, i);
 	    }
 	    
@@ -207,6 +207,7 @@ public class AudioServer implements UDPDelegate{
 	    }
 		
 	    int[] outbuffer = new int[(frameSize+3) * 4];		// FrameSize * 4
+	    
 	    int outputsize = 0;
 	    outputsize = AlacDecodeUtils.decode_frame(alac, packet, outbuffer, outputsize);
 	    
