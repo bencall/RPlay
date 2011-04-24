@@ -8,6 +8,8 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.Security;
 import java.util.concurrent.locks.Condition;
@@ -38,9 +40,12 @@ public class AudioServer implements UDPDelegate{
 	int writeIndex;
 	int actualBufSize;
 	DatagramSocket sock, csock;
-	// Keys
+	// AES Keys
 	byte[] aesiv;
 	byte[] aeskey;
+    SecretKeySpec k;
+    Cipher c;
+    
 	//Decoder
 	AlacFile alac;
 	int frameSize;
@@ -107,21 +112,31 @@ public class AudioServer implements UDPDelegate{
 
 	private void initBuffer(){
 		audioBuffer = new AudioData[BUFFER_FRAMES];
+		for (int i = 0; i< BUFFER_FRAMES; i++){
+			audioBuffer[i] = new AudioData();
+		}
 	}
 	
 	public void packetReceived(DatagramSocket socket, DatagramPacket packet) {
 		int type = packet.getData()[1] & ~0x80;
 		if (type == 0x60 || type == 0x56) { 	// audio data / resend
-			byte[] pktp = packet.getData();
+			
+			// Decale de 4 bytes supplementaires
+			int off = 0;
 			if(type==0x56){
-				for(int i=0; i<pktp.length-4; i++){
-					pktp[i] = packet.getData()[i+4];
-				}
+				off = 4;
 			}
 			
 			//seqno is on two byte
-			int seqno = (int)((pktp[2] & 0xff)*256 + (pktp[3] & 0xff)); 
-
+			int seqno = (int)((packet.getData()[2+off] & 0xff)*256 + (packet.getData()[3+off] & 0xff)); 
+			System.out.println("SEQNO: "+ seqno);
+	
+			// + les 12 (cfr. RFC RTP: champs a ignorer)
+			byte[] pktp = new byte[packet.getLength() - off - 12];
+			for(int i=0; i<pktp.length; i++){
+				pktp[i] = packet.getData()[i+12+off];
+			}
+			
 			this.putPacketInBuffer(seqno, pktp);
 		}
 	}
@@ -137,19 +152,19 @@ public class AudioServer implements UDPDelegate{
 			readIndex = seqno;
 			synced = true;
 		}
-		System.out.println("ID: " + (seqno % BUFFER_FRAMES));
+
 		if (seqno == writeIndex){													// Packet we expected
-			// audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);		// With (seqno % BUFFER_FRAMES) we loop from 0 to BUFFER_FRAMES
-			//audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
+			audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);		// With (seqno % BUFFER_FRAMES) we loop from 0 to BUFFER_FRAMES
+			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
 			writeIndex++;
 		} else if(seqno > writeIndex){												// Too early, did we miss some packet between writeIndex and seqno?
 			this.request_resend(writeIndex, seqno);
-			//audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);
-			//audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
+			audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);
+			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
 			writeIndex = seqno + 1;
 		} else if(seqno > readIndex){												// readIndex < seqno < writeIndex not yet played but too late. Still ok
-			//audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);
-			//audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
+			audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);
+			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
 		} else {
 			System.err.println("Late packet with seq. numb.: " + seqno);			// Really to late
 		}
@@ -174,51 +189,50 @@ public class AudioServer implements UDPDelegate{
 		
 	}
 
-	private int[] alac_decode(byte[] data){
-		// TODO Auto-generated method stub
+	private int[] alac_decode(byte[] data){		
+		byte[] packet = new byte[MAX_PACKET];
 		
-	    byte[] packet = new byte[MAX_PACKET];
+		// Init AES
+		initAES();
+		
 	    int i;
 	    for (i=0; i+16<=data.length; i += 16){
-	    	// 16 byte block data
-	    	byte[] buffer = new byte[16];
-	    	for (int j=0 ; j<16 ; j++){
-	    		buffer[j] = data[i+j];
-	    	}
-	      	
 	    	// Encrypt
-	    	byte[] buf = this.encryptAES(buffer);
-	    	
-	    	// We merge everything
-	      	for (int j=0 ; j<16 ; j++){
-	    		packet[i+j] = buf[j];
-	    	}
+	    	this.decryptAES(data, i, 16, packet, i);
 	    }
-
+	    
 	    // The rest of the packet is unencrypted
-	    for (int k = 0; i<(data.length % 16); i++){
-	    	packet[i] = data[k];
+	    for (int k = 0; k<(data.length % 16); k++){
+	    	packet[i+k] = data[i+k];
 	    }
-	    
-	    int[] outbuffer = new int[frameSize*4];		// FrameSize * 4
+		
+	    int[] outbuffer = new int[(frameSize+3) * 4];		// FrameSize * 4
 	    int outputsize = 0;
-	    AlacDecodeUtils.decode_frame(alac, packet, outbuffer, outputsize);
+	    outputsize = AlacDecodeUtils.decode_frame(alac, packet, outbuffer, outputsize);
 	    
+	    System.out.println("SIZE: " + outputsize + " vs " + frameSize*4);
 		return outbuffer;
 	}
 	
 		
-	public byte[] encryptAES(byte[] array){
-		try{
-			SecretKeySpec k = new SecretKeySpec(aeskey, "AES");
-			Cipher c = Cipher.getInstance("AES/CBC/NoPadding");
+	private void initAES(){
+		// Init AES encryption
+		try {
+			k = new SecretKeySpec(aeskey, "AES");
+			c = Cipher.getInstance("AES/CBC/NoPadding");
 			c.init(Cipher.DECRYPT_MODE, k, new IvParameterSpec(aesiv));
-	        return c.doFinal(array);
-
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private int decryptAES(byte[] array, int inputOffset, int inputLen, byte[] output, int outputOffset){
+		try{
+	        return c.update(array, inputOffset, inputLen, output, outputOffset);
 		}catch(Exception e){
 			e.printStackTrace();
 		}
 		
-		return null;
+		return -1;
 	}
 }
