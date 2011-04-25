@@ -30,7 +30,7 @@ public class AudioServer implements UDPDelegate{
 	public static final int BUFFER_FRAMES = 512;	// Total buffer size (number of frame)
 	public static final int START_FILL = 282;		// Alac will wait till there are START_FILL frames in buffer
 	public static final int MAX_PACKET = 2048;		// Also in UDPListener (possible to merge it in one place?)
-
+	
 	// Variables d'instances
 	int[]fmtp;								// Sound infos
 	AudioData[] audioBuffer;				// Buffer audio
@@ -90,14 +90,19 @@ public class AudioServer implements UDPDelegate{
 	
 	private void initDecoder(){
 		frameSize = fmtp[1];
-//		int samplingRate = fmtp[11];
+
 		int sampleSize = fmtp[3];
 		if (sampleSize != 16){
+			System.err.println("ERROR: 16 bits only!!!");
 			return;
 		}
 		
 		alac = AlacDecodeUtils.create_alac(sampleSize, 2);
-		alac.setinfo_max_samples_per_frame = 3;
+		if (alac == null){
+			System.err.println("ERROR: creating alac!!!");
+			return;
+		}
+		alac.setinfo_max_samples_per_frame = frameSize;
 		alac.setinfo_7a = fmtp[2];
 		alac.setinfo_sample_size = sampleSize;
 		alac.setinfo_rice_historymult = fmtp[4];
@@ -114,6 +119,7 @@ public class AudioServer implements UDPDelegate{
 		audioBuffer = new AudioData[BUFFER_FRAMES];
 		for (int i = 0; i< BUFFER_FRAMES; i++){
 			audioBuffer[i] = new AudioData();
+			audioBuffer[i].data = new int[4*(frameSize+3)];	// = OUTFRAME_BYTES = 4(frameSize+3)
 		}
 	}
 	
@@ -205,13 +211,14 @@ public class AudioServer implements UDPDelegate{
 	    for (int k = 0; k<(data.length % 16); k++){
 	    	packet[i+k] = data[i+k];
 	    }
-		
-	    int[] outbuffer = new int[(frameSize+3) * 4];		// FrameSize * 4
+	    
+	    int[] outbuffer = new int[(frameSize+3) * 4];		// (FrameSize+3) * 4 = OUTFRAME_BYTES
 	    
 	    int outputsize = 0;
 	    outputsize = AlacDecodeUtils.decode_frame(alac, packet, outbuffer, outputsize);
+
+	    assert outputsize==frameSize*4;						// FRAME_BYTES length
 	    
-	    System.out.println("SIZE: " + outputsize + " vs " + frameSize*4);
 		return outbuffer;
 	}
 	
