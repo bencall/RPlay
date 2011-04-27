@@ -8,6 +8,9 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.ServerSocket;
+import java.net.SocketAddress;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.KeyPair;
@@ -19,6 +22,12 @@ import java.util.concurrent.locks.ReentrantLock;
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import javax.sound.sampled.AudioFormat;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.DataLine;
+import javax.sound.sampled.Line;
+import javax.sound.sampled.LineUnavailableException;
+import javax.sound.sampled.SourceDataLine;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.openssl.PEMReader;
@@ -44,20 +53,29 @@ public class AudioServer implements UDPDelegate{
 	byte[] aesiv;
 	byte[] aeskey;
     SecretKeySpec k;
-    Cipher c;
-    
+    Cipher c;    
 	//Decoder
 	AlacFile alac;
 	int frameSize;
+	// Ports
+	InetAddress rtpClient;
+	int controlPort;
 	// Mutex locks
     private final Lock lock = new ReentrantLock();
     private final Condition bufferOkCond = lock.newCondition();
+    
+    
+    // Tampon
+    int temp11 = -1;
 
 	public AudioServer(byte[] aesiv, byte[] aeskey, int[] fmtp, int controlPort, int timingPort){
 		// Init instance var
 		this.fmtp = fmtp;
 		this.aesiv = aesiv;
 		this.aeskey = aeskey;
+		
+		// Ports
+		this.controlPort = controlPort;
 		
 		// Init functions
 		this.initDecoder();
@@ -124,9 +142,10 @@ public class AudioServer implements UDPDelegate{
 	}
 	
 	public void packetReceived(DatagramSocket socket, DatagramPacket packet) {
+		this.rtpClient = packet.getAddress();		// The client address
+		
 		int type = packet.getData()[1] & ~0x80;
 		if (type == 0x60 || type == 0x56) { 	// audio data / resend
-			
 			// Decale de 4 bytes supplementaires
 			int off = 0;
 			if(type==0x56){
@@ -135,7 +154,6 @@ public class AudioServer implements UDPDelegate{
 			
 			//seqno is on two byte
 			int seqno = (int)((packet.getData()[2+off] & 0xff)*256 + (packet.getData()[3+off] & 0xff)); 
-			System.out.println("SEQNO: "+ seqno);
 	
 			// + les 12 (cfr. RFC RTP: champs a ignorer)
 			byte[] pktp = new byte[packet.getLength() - off - 12];
@@ -148,8 +166,7 @@ public class AudioServer implements UDPDelegate{
 	}
 	
 	private void putPacketInBuffer(int seqno, byte[] data){
-	    // Ring buffer may be implemented in a Hashtable in java (simplier), but is it fast enough?
-
+	    // Ring buffer may be implemented in a Hashtable in java (simplier), but is it fast enough?		
 		// We lock the thread
 		lock.lock();
 		
@@ -159,17 +176,22 @@ public class AudioServer implements UDPDelegate{
 			synced = true;
 		}
 
+		System.out.println("SEQNO: "+ seqno + "::" + (seqno % BUFFER_FRAMES));
+		if((seqno % BUFFER_FRAMES) == 100){
+			this.request_resend(seqno, seqno);
+		}
+		int outputSize = 0;
 		if (seqno == writeIndex){													// Packet we expected
-			audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);		// With (seqno % BUFFER_FRAMES) we loop from 0 to BUFFER_FRAMES
+			outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);		// With (seqno % BUFFER_FRAMES) we loop from 0 to BUFFER_FRAMES
 			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
 			writeIndex++;
 		} else if(seqno > writeIndex){												// Too early, did we miss some packet between writeIndex and seqno?
 			this.request_resend(writeIndex, seqno);
-			audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);
+			outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);
 			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
 			writeIndex = seqno + 1;
 		} else if(seqno > readIndex){												// readIndex < seqno < writeIndex not yet played but too late. Still ok
-			audioBuffer[(seqno % BUFFER_FRAMES)].data = this.alac_decode(data);
+			outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);
 			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
 		} else {
 			System.err.println("Late packet with seq. numb.: " + seqno);			// Really to late
@@ -190,12 +212,34 @@ public class AudioServer implements UDPDelegate{
 	    
 	}
 	
-	private void request_resend(int writeIndex2, int seqno) {
-		// TODO Auto-generated method stub
+	private void request_resend(int first, int last) {
+		System.out.println("Resend Request: " + first + "::" + last);
+		if(last<first){
+			return;
+		}
+		
+		byte request[] = new byte[8];
+		request[0] = (byte)(0x80 & 0xFF);		// Header
+		request[1] = (byte)((0x55|0x80) & 0xFF);
+		request[2] = (byte)((1>>8)&0xFF);			// Our seqnum
+		request[3] = (byte)(1&0xFF);
+		request[4] = (byte)((first>>8)&0xFF);	// First
+		request[5] = (byte)(first&0xFF);
+		request[6] = (byte)(((last-first+1)>>8)&0xFF);	// Count
+		request[7] = (byte)((last-first+1)&0xFF);
+				
+		try {
+			DatagramPacket temp = new DatagramPacket(request, request.length, rtpClient, controlPort);
+			csock.send(temp);
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
 		
 	}
 
-	private int[] alac_decode(byte[] data){		
+	private int alac_decode(byte[] data, int[] outbuffer){		
 		byte[] packet = new byte[MAX_PACKET];
 		
 		// Init AES
@@ -211,15 +255,13 @@ public class AudioServer implements UDPDelegate{
 	    for (int k = 0; k<(data.length % 16); k++){
 	    	packet[i+k] = data[i+k];
 	    }
-	    
-	    int[] outbuffer = new int[(frameSize+3) * 4];		// (FrameSize+3) * 4 = OUTFRAME_BYTES
-	    
+	    	    
 	    int outputsize = 0;
 	    outputsize = AlacDecodeUtils.decode_frame(alac, packet, outbuffer, outputsize);
 
 	    assert outputsize==frameSize*4;						// FRAME_BYTES length
 	    
-		return outbuffer;
+		return outputsize;
 	}
 	
 		
