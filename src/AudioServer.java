@@ -44,6 +44,14 @@ public class AudioServer implements UDPDelegate{
     private final Lock lock = new ReentrantLock();    
 
     
+    /**
+     * Constructor. Initiate instances vars
+     * @param aesiv
+     * @param aeskey
+     * @param fmtp
+     * @param controlPort
+     * @param timingPort
+     */
 	public AudioServer(byte[] aesiv, byte[] aeskey, int[] fmtp, int controlPort, int timingPort){
 		// Init instance var
 		this.fmtp = fmtp;
@@ -56,9 +64,16 @@ public class AudioServer implements UDPDelegate{
 		// Init functions
 		this.initDecoder();
 		this.initBuffer();
-		this.initRTP();		
+		this.initRTP();
+		
+		@SuppressWarnings("unused")
+		PCMPlayer player = new PCMPlayer(audioBuffer);
 	}
 	
+	/**
+	 * Sets the packets as not ready. Audio thread will only listen to ready packets.
+	 * No audio more.
+	 */
 	public void flush(){
 		for (int i = 0; i< BUFFER_FRAMES; i++){
 			audioBuffer[i].ready = false;
@@ -66,11 +81,17 @@ public class AudioServer implements UDPDelegate{
 		}
 	}
 	
+	/**
+	 * Return the server port for the bonjour service
+	 * @return
+	 */
 	public int getServerPort() {
 		return sock.getLocalPort();
 	}
 	
-	
+	/**
+	 * Opens the sockets and begin listening
+	 */
 	private void initRTP(){
 		int port = 6000;
 		while(true){
@@ -90,7 +111,9 @@ public class AudioServer implements UDPDelegate{
 		UDPListener l2 = new UDPListener(csock, this);
 	}
 	
-	
+	/**
+	 * Initiate the decoder
+	 */
 	private void initDecoder(){
 		frameSize = fmtp[1];
 
@@ -118,7 +141,9 @@ public class AudioServer implements UDPDelegate{
 	    alac.setinfo_8a_rate = fmtp[11];
 	}
 
-	
+	/**
+	 * Initiate the ring buffer
+	 */
 	private void initBuffer(){
 		audioBuffer = new AudioData[BUFFER_FRAMES];
 		for (int i = 0; i< BUFFER_FRAMES; i++){
@@ -127,7 +152,9 @@ public class AudioServer implements UDPDelegate{
 		}
 	}
 	
-	
+	/**
+	 * When udpListener gets a packet
+	 */
 	public void packetReceived(DatagramSocket socket, DatagramPacket packet) {
 		this.rtpClient = packet.getAddress();		// The client address
 		
@@ -152,7 +179,11 @@ public class AudioServer implements UDPDelegate{
 		}
 	}
 	
-	
+	/**
+	 * Adds packet into the buffer
+	 * @param seqno	seqno of the given packet. Used as index
+	 * @param data
+	 */
 	private void putPacketInBuffer(int seqno, byte[] data){
 	    // Ring buffer may be implemented in a Hashtable in java (simplier), but is it fast enough?		
 		// We lock the thread
@@ -168,6 +199,7 @@ public class AudioServer implements UDPDelegate{
 		if((seqno % BUFFER_FRAMES) == 100){
 			this.request_resend(seqno, seqno);
 		}
+		@SuppressWarnings("unused")
 		int outputSize = 0;
 		if (seqno == writeIndex){													// Packet we expected
 			outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);		// With (seqno % BUFFER_FRAMES) we loop from 0 to BUFFER_FRAMES
@@ -199,7 +231,6 @@ public class AudioServer implements UDPDelegate{
 	    }
 	    
 	}
-	
 	
 	/**
 	 * Ask iTunes to resend packet
@@ -234,7 +265,12 @@ public class AudioServer implements UDPDelegate{
 		
 	}
 
-	
+	/**
+	 * Decrypt and decode the packet.
+	 * @param data
+	 * @param outbuffer the result
+	 * @return
+	 */
 	private int alac_decode(byte[] data, int[] outbuffer){		
 		byte[] packet = new byte[MAX_PACKET];
 		
@@ -260,7 +296,9 @@ public class AudioServer implements UDPDelegate{
 		return outputsize;
 	}
 	
-		
+	/**
+	 * Initiate the cipher	
+	 */
 	private void initAES(){
 		// Init AES encryption
 		try {
@@ -272,7 +310,15 @@ public class AudioServer implements UDPDelegate{
 		}
 	}
 	
-	
+	/**
+	 * Decrypt array from input offset with a length of inputlen and puts it in output at outputoffsest
+	 * @param array
+	 * @param inputOffset
+	 * @param inputLen
+	 * @param output
+	 * @param outputOffset
+	 * @return
+	 */
 	private int decryptAES(byte[] array, int inputOffset, int inputLen, byte[] output, int outputOffset){
 		try{
 	        return c.update(array, inputOffset, inputLen, output, outputOffset);

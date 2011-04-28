@@ -3,10 +3,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * Extracts informations from RTSP Header
+ * Extract informations from RTSP Header
  * @author bencall
  *
  */
+//
 public class RTSPPacket {
 	private String req;
 	private String directory;

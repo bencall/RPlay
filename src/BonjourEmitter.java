@@ -12,6 +12,7 @@ import com.apple.dnssd.TXTRecord;
  *
  */
 
+//
 public class BonjourEmitter implements RegisterListener{
 	DNSSDRegistration r;
 	

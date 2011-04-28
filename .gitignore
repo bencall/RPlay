@@ -4,3 +4,6 @@
 *.class
 /bin/RTSPResponder.class
 /bin/BonjourEmitter.class
+/bin/RTSPPacket.class
+/bin/Rplay.class
+/bin/UDPDelegate.class
