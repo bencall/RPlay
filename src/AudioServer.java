@@ -3,35 +3,16 @@
  * @author bencall
  *
  */
-
 import java.io.IOException;
-import java.io.StringReader;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.ServerSocket;
-import java.net.SocketAddress;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.KeyPair;
-import java.security.Security;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-import javax.sound.sampled.AudioFormat;
-import javax.sound.sampled.AudioSystem;
-import javax.sound.sampled.DataLine;
-import javax.sound.sampled.Line;
-import javax.sound.sampled.LineUnavailableException;
-import javax.sound.sampled.SourceDataLine;
-
-import org.bouncycastle.jce.provider.BouncyCastleProvider;
-import org.bouncycastle.openssl.PEMReader;
-
 import com.beatofthedrum.alacdecoder.*;
 
 public class AudioServer implements UDPDelegate{
@@ -39,35 +20,30 @@ public class AudioServer implements UDPDelegate{
 	public static final int BUFFER_FRAMES = 512;	// Total buffer size (number of frame)
 	public static final int START_FILL = 282;		// Alac will wait till there are START_FILL frames in buffer
 	public static final int MAX_PACKET = 2048;		// Also in UDPListener (possible to merge it in one place?)
-	
 	// Variables d'instances
-	int[]fmtp;								// Sound infos
-	AudioData[] audioBuffer;				// Buffer audio
-	boolean synced = false;
-	boolean decoder_isStopped = false;		//The decoder stops 'cause the isn't enough packet. Waits till buffer is full
-	int readIndex;							//	audioBuffer is a ring buffer. We write at write index and we read at readindex.
-	int writeIndex;
-	int actualBufSize;
-	DatagramSocket sock, csock;
+	private int[]fmtp;								// Sound infos
+	private AudioData[] audioBuffer;				// Buffer audio
+	private boolean synced = false;
+	private boolean decoder_isStopped = false;		//The decoder stops 'cause the isn't enough packet. Waits till buffer is full
+	private int readIndex;							//	audioBuffer is a ring buffer. We write at write index and we read at readindex.
+	private int writeIndex;
+	private int actualBufSize;
+	private DatagramSocket sock, csock;
 	// AES Keys
-	byte[] aesiv;
-	byte[] aeskey;
-    SecretKeySpec k;
-    Cipher c;    
+	private byte[] aesiv;
+	private byte[] aeskey;
+	private SecretKeySpec k;
+	private Cipher c;    
 	//Decoder
-	AlacFile alac;
-	int frameSize;
+	private AlacFile alac;
+	private int frameSize;
 	// Ports
-	InetAddress rtpClient;
-	int controlPort;
+	private InetAddress rtpClient;
+	private int controlPort;
 	// Mutex locks
-    private final Lock lock = new ReentrantLock();
-    private final Condition bufferOkCond = lock.newCondition();
-    
-    
-    // Tampon
-    int temp11 = -1;
+    private final Lock lock = new ReentrantLock();    
 
+    
 	public AudioServer(byte[] aesiv, byte[] aeskey, int[] fmtp, int controlPort, int timingPort){
 		// Init instance var
 		this.fmtp = fmtp;
@@ -83,9 +59,17 @@ public class AudioServer implements UDPDelegate{
 		this.initRTP();		
 	}
 	
+	public void flush(){
+		for (int i = 0; i< BUFFER_FRAMES; i++){
+			audioBuffer[i].ready = false;
+			synced = false;
+		}
+	}
+	
 	public int getServerPort() {
 		return sock.getLocalPort();
 	}
+	
 	
 	private void initRTP(){
 		int port = 6000;
@@ -105,6 +89,7 @@ public class AudioServer implements UDPDelegate{
 		@SuppressWarnings("unused")
 		UDPListener l2 = new UDPListener(csock, this);
 	}
+	
 	
 	private void initDecoder(){
 		frameSize = fmtp[1];
@@ -133,6 +118,7 @@ public class AudioServer implements UDPDelegate{
 	    alac.setinfo_8a_rate = fmtp[11];
 	}
 
+	
 	private void initBuffer(){
 		audioBuffer = new AudioData[BUFFER_FRAMES];
 		for (int i = 0; i< BUFFER_FRAMES; i++){
@@ -140,6 +126,7 @@ public class AudioServer implements UDPDelegate{
 			audioBuffer[i].data = new int[4*(frameSize+3)];	// = OUTFRAME_BYTES = 4(frameSize+3)
 		}
 	}
+	
 	
 	public void packetReceived(DatagramSocket socket, DatagramPacket packet) {
 		this.rtpClient = packet.getAddress();		// The client address
@@ -164,6 +151,7 @@ public class AudioServer implements UDPDelegate{
 			this.putPacketInBuffer(seqno, pktp);
 		}
 	}
+	
 	
 	private void putPacketInBuffer(int seqno, byte[] data){
 	    // Ring buffer may be implemented in a Hashtable in java (simplier), but is it fast enough?		
@@ -212,6 +200,13 @@ public class AudioServer implements UDPDelegate{
 	    
 	}
 	
+	
+	/**
+	 * Ask iTunes to resend packet
+	 * FUNCTIONAL??? NO PROOFS
+	 * @param first
+	 * @param last
+	 */
 	private void request_resend(int first, int last) {
 		System.out.println("Resend Request: " + first + "::" + last);
 		if(last<first){
@@ -221,13 +216,13 @@ public class AudioServer implements UDPDelegate{
 		byte request[] = new byte[8];
 		request[0] = (byte)(0x80 & 0xFF);		// Header
 		request[1] = (byte)((0x55|0x80) & 0xFF);
-		request[2] = (byte)((1>>8)&0xFF);			// Our seqnum
-		request[3] = (byte)(1&0xFF);
-		request[4] = (byte)((first>>8)&0xFF);	// First
-		request[5] = (byte)(first&0xFF);
-		request[6] = (byte)(((last-first+1)>>8)&0xFF);	// Count
-		request[7] = (byte)((last-first+1)&0xFF);
-				
+		request[2] = (byte)((1>>8) & 0xFF);			// Our seqnum
+		request[3] = (byte)(1 & 0xFF);
+		request[4] = (byte)((first>>8) & 0xFF);	// First
+		request[5] = (byte)(first & 0xFF);
+		request[6] = (byte)(((last-first+1)>>8) & 0xFF);	// Count
+		request[7] = (byte)((last-first+1) & 0xFF);
+		
 		try {
 			DatagramPacket temp = new DatagramPacket(request, request.length, rtpClient, controlPort);
 			csock.send(temp);
@@ -239,6 +234,7 @@ public class AudioServer implements UDPDelegate{
 		
 	}
 
+	
 	private int alac_decode(byte[] data, int[] outbuffer){		
 		byte[] packet = new byte[MAX_PACKET];
 		
@@ -276,6 +272,7 @@ public class AudioServer implements UDPDelegate{
 		}
 	}
 	
+	
 	private int decryptAES(byte[] array, int inputOffset, int inputLen, byte[] output, int outputOffset){
 		try{
 	        return c.update(array, inputOffset, inputLen, output, outputOffset);
@@ -285,4 +282,5 @@ public class AudioServer implements UDPDelegate{
 		
 		return -1;
 	}
+
 }

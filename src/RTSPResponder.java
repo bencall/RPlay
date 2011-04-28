@@ -28,7 +28,8 @@ public class RTSPResponder{
 	private ServerSocket sock;				// Initial socket
 	private Socket socket;					// Connected socket
 	private int[] fmtp;
-	private byte[] aesiv, aeskey;		// ANNOUNCE request infos
+	private byte[] aesiv, aeskey;			// ANNOUNCE request infos
+	private AudioServer serv; 				// Audio listener
 	
 	private String key =  
 		"-----BEGIN RSA PRIVATE KEY-----\n"
@@ -176,11 +177,22 @@ public class RTSPResponder{
         	}
             
         	// Launching audioserver
-			AudioServer serv = new AudioServer(aesiv, aeskey, fmtp, controlPort, timingPort);
+			serv = new AudioServer(aesiv, aeskey, fmtp, controlPort, timingPort);
         	response.append("Transport: " + packet.valueOfHeader("Transport") + ";server_port=" + serv.getServerPort() + "\r\n");
         			
         	// ??? Why ???
         	response.append("Session: DEADBEEF\r\n");
+        } else if (REQ.contentEquals("RECORD")){
+//        	Headers	
+//        	Range: ntp=0-
+//        	RTP-Info: seq={Note 1};rtptime={Note 2}
+//        	Note 1: Initial value for the RTP Sequence Number, random 16 bit value
+//        	Note 2: Initial value for the RTP Timestamps, random 32 bit value
+
+        } else if (REQ.contentEquals("FLUSH")){
+        	serv.flush();
+        } else if (REQ.contentEquals("TEARDOWN")){
+        	response.append("Connection: close\r\n");
         } else {
         	System.out.println("REQUEST(" + REQ + "): Not Supported Yet!");
         	System.out.println(packet.getRawPacket());
@@ -197,12 +209,12 @@ public class RTSPResponder{
     		oStream.flush();
 
     		// Don't know why, but connection must be closed after the OPTIONS request
-    		if(REQ.contentEquals("OPTIONS")){
+    		if(REQ.contentEquals("OPTIONS") || REQ.contentEquals("TEARDOWN") ){
     			socket.close();
-    			socket = sock.accept();
+    			socket = null;
     		}
     		
-    		// We listen for a new connection
+    		// We listen for a new connection or new data
     		this.listen();
     		
 		} catch (IOException e) {

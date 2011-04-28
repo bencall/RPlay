@@ -21,7 +21,6 @@ public class Rplay {
 			RTSPResponder repondeur = new RTSPResponder(port);
 			@SuppressWarnings("unused")
 			BonjourEmitter emetteur = new BonjourEmitter("Benj", "F1F1F1F1F1F1", repondeur.getPort());
-
 			repondeur.listen();
 
 
