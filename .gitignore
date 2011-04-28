@@ -3,3 +3,4 @@
 /bin/UDPListener.class
 *.class
 /bin/RTSPResponder.class
+/bin/BonjourEmitter.class
