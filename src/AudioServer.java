@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -25,7 +26,7 @@ public class AudioServer implements UDPDelegate{
 	private AudioData[] audioBuffer;				// Buffer audio
 	private boolean synced = false;
 	private boolean decoder_isStopped = false;		//The decoder stops 'cause the isn't enough packet. Waits till buffer is full
-	private int readIndex;							//	audioBuffer is a ring buffer. We write at write index and we read at readindex.
+	private int readIndex;							//	audioBuffer is a ring buffer. We write at writeindex(seqno) and we read at readindex(seqno).
 	private int writeIndex;
 	private int actualBufSize;
 	private DatagramSocket sock, csock;
@@ -42,7 +43,7 @@ public class AudioServer implements UDPDelegate{
 	private int controlPort;
 	// Mutex locks
     private final Lock lock = new ReentrantLock();    
-
+    private final Condition bufferOkCond = lock.newCondition();
     
     /**
      * Constructor. Initiate instances vars
@@ -67,8 +68,38 @@ public class AudioServer implements UDPDelegate{
 		this.initRTP();
 		
 		@SuppressWarnings("unused")
-		PCMPlayer player = new PCMPlayer(audioBuffer);
+		PCMPlayer player = new PCMPlayer(this);
 	}
+	
+	
+	public int[] getNextFrame(){
+		
+		lock.lock();	// Synchronized
+		actualBufSize = readIndex-writeIndex;	// Packets in buffer
+		
+		if(actualBufSize<1 || !synced){			// If no packets more or Not synced (flush: pause)
+			if(synced){							// If it' because there is not enough packets
+				System.err.println("Underrun!!! Not enough frames in buffer!");
+			}
+			
+			try {
+				// We say the decoder is stopped and waiting for signal
+				decoder_isStopped = true;
+				bufferOkCond.await();
+				readIndex++;	// We read next packet
+				lock.unlock();
+				
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+			
+			return null;
+		}
+		
+		return null;
+		
+	}
+	
 	
 	/**
 	 * Sets the packets as not ready. Audio thread will only listen to ready packets.
@@ -219,15 +250,12 @@ public class AudioServer implements UDPDelegate{
 		
 		// The number of packet in buffer
 	    actualBufSize = writeIndex - readIndex;
-	    if(actualBufSize<0){	// If write head (tete d'ecriture) is at index 1 and read head (tete de lecture) at 510 for example.
-	    	actualBufSize = actualBufSize + BUFFER_FRAMES;
-	    }
 	    
 	    // We unlock the tread
 	    lock.unlock();
 	    
 	    if(!decoder_isStopped && actualBufSize > START_FILL){
-// TODO	    	bufferOkCond.signal();
+	    	bufferOkCond.signal();
 	    }
 	    
 	}

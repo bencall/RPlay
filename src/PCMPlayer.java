@@ -15,13 +15,14 @@ public class PCMPlayer extends Thread{
 	AudioFormat audioFormat;
 	Info info;
 	SourceDataLine dataLine;
-	AudioData[] audioBuffer;
+	AudioServer server;
 	
-	public PCMPlayer(AudioData[] audioBuffer){
+	public PCMPlayer(AudioServer server){
 		super();
-		this.audioBuffer = audioBuffer;
+		this.server = server;
 	}
 	
 	public void run(){
+		server.getNextFrame();
 	}
 }
