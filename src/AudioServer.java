@@ -7,7 +7,6 @@ import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -44,7 +43,6 @@ public class AudioServer implements UDPDelegate{
 	private int controlPort;
 	// Mutex locks
     private final Lock lock = new ReentrantLock();    
-    private final Condition bufferOkCond = lock.newCondition();
     // Audio stuff
     biquadFilter bFilter;
     
@@ -70,60 +68,69 @@ public class AudioServer implements UDPDelegate{
 		this.initBuffer();
 		this.initRTP();
 		
-		@SuppressWarnings("unused")
 		PCMPlayer player = new PCMPlayer(this);
+		player.start();
 	}
 	
+	public int getFrameSize(){
+		return this.frameSize;
+	}
 	
 	public int[] getNextFrame(){
-		lock.lock();	// Synchronized
-		actualBufSize = readIndex-writeIndex;	// Packets in buffer
-		
-		if(actualBufSize<1 || !synced){			// If no packets more or Not synced (flush: pause)
-			if(synced){							// If it' because there is not enough packets
-				System.err.println("Underrun!!! Not enough frames in buffer!");
-			}
+	    synchronized (lock) {
+			actualBufSize = writeIndex-readIndex;	// Packets in buffer
+			System.err.println("FILL: "+actualBufSize);
 			
-			try {
-				// We say the decoder is stopped and we wait for signal
-				decoder_isStopped = true;
-				bufferOkCond.await();
-				readIndex++;	// We read next packet
-				lock.unlock();
+			if(actualBufSize<1 || !synced){			// If no packets more or Not synced (flush: pause)
+				if(synced){							// If it' because there is not enough packets
+					System.err.println("Underrun!!! Not enough frames in buffer!");
+				}
 				
-				// Underrun: stream reset
-				bFilter = new biquadFilter(this.sampleSize, this.frameSize);	// New biquadFilter with default attribute (reset)
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+				try {
+					// We say the decoder is stopped and we wait for signal
+					System.err.println("Waiting");
+					decoder_isStopped = true;
+				    	lock.wait();
+				    decoder_isStopped = false;
+					System.err.println("re-starting");
+					//TODO
+					
+					readIndex++;	// We read next packet
+					
+					// Underrun: stream reset
+					bFilter = new biquadFilter(this.sampleSize, this.frameSize);	// New biquadFilter with default attribute (reset)
+				} catch (InterruptedException e) {
+					e.printStackTrace();
+				}
+				
+				return null;
 			}
 			
-			return null;
+			// Overrunning. Restart at a sane distance
+		    if (actualBufSize >= BUFFER_FRAMES) {   // overrunning! uh-oh. restart at a sane distance
+				System.err.println("Overrun!!! Too much frames in buffer!");
+		        readIndex = writeIndex - START_FILL;
+		    }
+			// we get the value before the unlock ;-)
+		    int read = readIndex;
+		    readIndex++;
+		     
+		    actualBufSize = writeIndex-readIndex;
+		    bFilter.update(actualBufSize); 
+		    
+		    AudioData buf = audioBuffer[read % BUFFER_FRAMES];
+		    
+		    if(!buf.ready){
+		    	System.err.println("Missing Frame!");
+		    	// Set to zero then
+		    	for(int i=0; i<buf.data.length; i++){
+		    		buf.data[i] = 0;
+		    	}
+		    }
+		    buf.ready = false;
+			return buf.data;
+
 		}
-		// Overrunning. Restart at a sane distance
-	    if (actualBufSize >= BUFFER_FRAMES) {   // overrunning! uh-oh. restart at a sane distance
-			System.err.println("Overrun!!! Too much frames in buffer!");
-	        readIndex = writeIndex - START_FILL;
-	    }
-		// we get the value before the unlock ;-)
-	    int read = readIndex;
-	    readIndex++;
-	    lock.unlock();
-	     
-	    actualBufSize = writeIndex-readIndex;
-	    bFilter.update(actualBufSize); 
-	    
-	    //TODO: volatile?
-	    AudioData buf = audioBuffer[read % BUFFER_FRAMES];
-	    
-	    if(!buf.ready){
-	    	System.err.println("Missing Frame!");
-	    	// Set to zero then
-	    	for(int i=0; i<buf.data.length; i++){
-	    		buf.data[i] = 0;
-	    	}
-	    }
-	    buf.ready = false;
-		return buf.data;
 	}
 	
 	
@@ -244,45 +251,42 @@ public class AudioServer implements UDPDelegate{
 	private void putPacketInBuffer(int seqno, byte[] data){
 	    // Ring buffer may be implemented in a Hashtable in java (simplier), but is it fast enough?		
 		// We lock the thread
-		lock.lock();
+		synchronized(lock){
 		
-		if(!synced){
-			writeIndex = seqno;
-			readIndex = seqno;
-			synced = true;
+			if(!synced){
+				writeIndex = seqno;
+				readIndex = seqno;
+				synced = true;
+			}
+	
+	
+			@SuppressWarnings("unused")
+			int outputSize = 0;
+			if (seqno == writeIndex){													// Packet we expected
+				outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);		// With (seqno % BUFFER_FRAMES) we loop from 0 to BUFFER_FRAMES
+				audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
+				writeIndex++;
+			} else if(seqno > writeIndex){												// Too early, did we miss some packet between writeIndex and seqno?
+				this.request_resend(writeIndex, seqno);
+				outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);
+				audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
+				writeIndex = seqno + 1;
+			} else if(seqno > readIndex){												// readIndex < seqno < writeIndex not yet played but too late. Still ok
+				outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);
+				audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
+			} else {
+				System.err.println("Late packet with seq. numb.: " + seqno);			// Really to late
+			}
+			
+			// The number of packet in buffer
+		    actualBufSize = writeIndex - readIndex;
+		    
+		    if(decoder_isStopped && actualBufSize > START_FILL){
+			    System.err.println(seqno);
+			    lock.notify();
+			    //TODO
+		    }
 		}
-
-		System.out.println("SEQNO: "+ seqno + "::" + (seqno % BUFFER_FRAMES));
-		if((seqno % BUFFER_FRAMES) == 100){
-			this.request_resend(seqno, seqno);
-		}
-		@SuppressWarnings("unused")
-		int outputSize = 0;
-		if (seqno == writeIndex){													// Packet we expected
-			outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);		// With (seqno % BUFFER_FRAMES) we loop from 0 to BUFFER_FRAMES
-			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
-			writeIndex++;
-		} else if(seqno > writeIndex){												// Too early, did we miss some packet between writeIndex and seqno?
-			this.request_resend(writeIndex, seqno);
-			outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);
-			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
-			writeIndex = seqno + 1;
-		} else if(seqno > readIndex){												// readIndex < seqno < writeIndex not yet played but too late. Still ok
-			outputSize = this.alac_decode(data, audioBuffer[(seqno % BUFFER_FRAMES)].data);
-			audioBuffer[(seqno % BUFFER_FRAMES)].ready = true;
-		} else {
-			System.err.println("Late packet with seq. numb.: " + seqno);			// Really to late
-		}
-		
-		// The number of packet in buffer
-	    actualBufSize = writeIndex - readIndex;
-	    
-	    // We unlock the tread
-	    lock.unlock();
-	    
-	    if(!decoder_isStopped && actualBufSize > START_FILL){
-	    	bufferOkCond.signal();
-	    }
 	    
 	}
 	

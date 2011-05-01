@@ -1,5 +1,9 @@
 
-
+/**
+ * Implementation of the biquad filter. Not sure it is correct
+ * @author bencall
+ *
+ */
 public class biquadFilter {
 	double bf_playback_rate = 1.0;
 	double bf_est_drift = 0.0;   // local clock is slower by
