@@ -22,7 +22,9 @@ public class AudioServer implements UDPDelegate{
 	public static final int START_FILL = 282;		// Alac will wait till there are START_FILL frames in buffer
 	public static final int MAX_PACKET = 2048;		// Also in UDPListener (possible to merge it in one place?)
 	// Variables d'instances
-	private int[]fmtp;								// Sound infos
+	private int[]fmtp;	// Sound infos
+	private int sampleSize; 
+	private int frameSize;
 	private AudioData[] audioBuffer;				// Buffer audio
 	private boolean synced = false;
 	private boolean decoder_isStopped = false;		//The decoder stops 'cause the isn't enough packet. Waits till buffer is full
@@ -37,13 +39,14 @@ public class AudioServer implements UDPDelegate{
 	private Cipher c;    
 	//Decoder
 	private AlacFile alac;
-	private int frameSize;
 	// Ports
 	private InetAddress rtpClient;
 	private int controlPort;
 	// Mutex locks
     private final Lock lock = new ReentrantLock();    
     private final Condition bufferOkCond = lock.newCondition();
+    // Audio stuff
+    biquadFilter bFilter;
     
     /**
      * Constructor. Initiate instances vars
@@ -73,7 +76,6 @@ public class AudioServer implements UDPDelegate{
 	
 	
 	public int[] getNextFrame(){
-		
 		lock.lock();	// Synchronized
 		actualBufSize = readIndex-writeIndex;	// Packets in buffer
 		
@@ -83,21 +85,45 @@ public class AudioServer implements UDPDelegate{
 			}
 			
 			try {
-				// We say the decoder is stopped and waiting for signal
+				// We say the decoder is stopped and we wait for signal
 				decoder_isStopped = true;
 				bufferOkCond.await();
 				readIndex++;	// We read next packet
 				lock.unlock();
 				
+				// Underrun: stream reset
+				bFilter = new biquadFilter(this.sampleSize, this.frameSize);	// New biquadFilter with default attribute (reset)
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 			
 			return null;
 		}
-		
-		return null;
-		
+		// Overrunning. Restart at a sane distance
+	    if (actualBufSize >= BUFFER_FRAMES) {   // overrunning! uh-oh. restart at a sane distance
+			System.err.println("Overrun!!! Too much frames in buffer!");
+	        readIndex = writeIndex - START_FILL;
+	    }
+		// we get the value before the unlock ;-)
+	    int read = readIndex;
+	    readIndex++;
+	    lock.unlock();
+	     
+	    actualBufSize = writeIndex-readIndex;
+	    bFilter.update(actualBufSize); 
+	    
+	    //TODO: volatile?
+	    AudioData buf = audioBuffer[read % BUFFER_FRAMES];
+	    
+	    if(!buf.ready){
+	    	System.err.println("Missing Frame!");
+	    	// Set to zero then
+	    	for(int i=0; i<buf.data.length; i++){
+	    		buf.data[i] = 0;
+	    	}
+	    }
+	    buf.ready = false;
+		return buf.data;
 	}
 	
 	
@@ -148,7 +174,7 @@ public class AudioServer implements UDPDelegate{
 	private void initDecoder(){
 		frameSize = fmtp[1];
 
-		int sampleSize = fmtp[3];
+		sampleSize = fmtp[3];
 		if (sampleSize != 16){
 			System.err.println("ERROR: 16 bits only!!!");
 			return;
