@@ -6,21 +6,24 @@ April 22, 2011
 What it is
 ----------
 This program is in alpha version and is not working at the moment
-This program emulates an Airport Express for the purpose of streaming music from iTunes and compatible iPods. It implements a server for the Apple RAOP protocol.
+It emulates an Airport Express for the purpose of streaming music from iTunes and compatible iPods. It implements a server for the Apple RAOP protocol.
 
 Thanks
 ------
-Big thanks to David Hammerton for releasing an ALAC decoder and to soiaf for porting it to Java.
-Thanks to Jame Laird for his C implementation (shairport)
+Big thanks to David Hammerton for releasing an ALAC decoder and to soiaf for porting it to Java (https://github.com/soiaf/Java-Apple-Lossless-decoder).
+Thanks to Jame Laird for his C implementation (shairport - https://github.com/albertz/shairport)
 
 Contributors
 ------------
 * [David Hammerton]
 * [James Laird]
 * [soiaf]
+* Everyone who has helped with shairport or the alac decoder (see their README)
 
 Changelog
 ---------
 * 0.01a  April 22, 2011
     * initial release: able to communicate with iTunes (RTSP server ok)
+* 0.01b  May 01, 2011
+    * First working version. Still buggy. Need to implement the volume parameter. Usable.    
 

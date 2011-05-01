@@ -128,6 +128,11 @@ public class AudioBuffer {
 		    	}
 		    }
 		    buf.ready = false;
+		    
+		    // SEQNO is stored in a short an come back to 0 when equal to 65536 (2 bytes)
+		    if(readIndex == 65536){
+		    	readIndex = 1;
+		    }
 			return buf.data;
 
 		}
@@ -174,6 +179,11 @@ public class AudioBuffer {
 		    if(decoder_isStopped && actualBufSize > START_FILL){
 			    System.err.println(seqno);
 			    lock.notify();
+		    }
+		    
+		    // SEQNO is stored in a short an come back to 0 when equal to 65536 (2 bytes)
+		    if(writeIndex == 65536){
+		    	writeIndex = 1;
 		    }
 		}
 	}
