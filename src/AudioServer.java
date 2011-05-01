@@ -54,7 +54,7 @@ public class AudioServer implements UDPDelegate{
      * @param controlPort
      * @param timingPort
      */
-	public AudioServer(byte[] aesiv, byte[] aeskey, int[] fmtp, int controlPort, int timingPort){
+	public AudioServer(byte[] aesiv, byte[] aeskey, int[] fmtp, int controlPort, int timingPort){		
 		// Init instance var
 		this.fmtp = fmtp;
 		this.aesiv = aesiv;
@@ -133,6 +133,10 @@ public class AudioServer implements UDPDelegate{
 		}
 	}
 	
+	
+	public biquadFilter getFilter(){
+		return bFilter;
+	}
 	
 	/**
 	 * Sets the packets as not ready. Audio thread will only listen to ready packets.
