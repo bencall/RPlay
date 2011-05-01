@@ -4,7 +4,7 @@
  * @author bencall
  *
  */
-public class biquadFilter {
+public class BiquadFilter {
 	double bf_playback_rate = 1.0;
 	double bf_est_drift = 0.0;   // local clock is slower by
 	biquad_t bf_drift_lpf;
@@ -18,7 +18,7 @@ public class biquadFilter {
 	private static final double CONTROL_A  = (1e-4);
 	private static final double CONTROL_B = (1e-1);
 	
-	public biquadFilter(int sampling_rate, int frame_size){
+	public BiquadFilter(int sampling_rate, int frame_size){
 		this.sampling_rate = sampling_rate;
 		this.frame_size = frame_size;
 		bf_drift_lpf = biquad_lpf(1.0/180.0, 0.3);

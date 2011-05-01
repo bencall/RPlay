@@ -177,7 +177,8 @@ public class RTSPResponder{
         	}
             
         	// Launching audioserver
-			serv = new AudioServer(aesiv, aeskey, fmtp, controlPort, timingPort);
+			serv = new AudioServer(new AudioSession(aesiv, aeskey, fmtp, controlPort, timingPort));
+			
         	response.append("Transport: " + packet.valueOfHeader("Transport") + ";server_port=" + serv.getServerPort() + "\r\n");
         			
         	// ??? Why ???

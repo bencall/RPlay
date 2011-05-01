@@ -13,14 +13,16 @@ public class PCMPlayer extends Thread{
 	AudioFormat audioFormat;
 	Info info;
 	SourceDataLine dataLine;
-	AudioServer server;
+	AudioSession session;
 	long fix_volume = 0x10000;
 	short rand_a, rand_b;
+	AudioBuffer audioBuf;
 	
-	public PCMPlayer(AudioServer server){
+	public PCMPlayer(AudioSession session, AudioBuffer audioBuf){
 		super();
-		this.server = server;
-	
+		this.session = session;
+		this.audioBuf = audioBuf;
+		
         try {
             audioFormat = new AudioFormat(44100, 16, 2, true, true);
             info = new DataLine.Info(SourceDataLine.class, audioFormat);
@@ -37,13 +39,13 @@ public class PCMPlayer extends Thread{
 	
 	public void run(){
 		while(true){
-			int[] buf = server.getNextFrame();
+			int[] buf = audioBuf.getNextFrame();
 			if(buf==null){
 				continue;
 			}
 			
-			int[] outbuf = new int[4*(server.getFrameSize()+3)];
-			int k = stuff_buffer(server.getFilter().bf_playback_rate, buf, outbuf);
+			int[] outbuf = new int[session.OUTFRAME_BYTES()];
+			int k = stuff_buffer(session.getFilter().bf_playback_rate, buf, outbuf);
 
 			byte[] input = new byte[outbuf.length*2];
 			
@@ -53,22 +55,21 @@ public class PCMPlayer extends Thread{
 				input[j++] = (byte)(outbuf[i]);
 			}
 			
-			System.err.println("Play!!!");
 			dataLine.write(input, 0, k*4);
 		}
 	}
 	
 	private int stuff_buffer(double playback_rate, int[] input, int[] output) {
 		
-	    int stuffsamp = server.getFrameSize();
+	    int stuffsamp = session.getFrameSize();
 	    int stuff = 0;
 	    double p_stuff;
 	    
-	    p_stuff = 1.0 - Math.pow(1.0 - Math.abs(playback_rate-1.0), server.getFrameSize());
+	    p_stuff = 1.0 - Math.pow(1.0 - Math.abs(playback_rate-1.0), session.getFrameSize());
 	    
 	    if (Math.random() < p_stuff) {
 	        stuff = playback_rate > 1.0 ? -1 : 1;
-	        stuffsamp = (int) (Math.random() * (server.getFrameSize() - 2));
+	        stuffsamp = (int) (Math.random() * (session.getFrameSize() - 2));
 	    }
 
 	    int j=0;
@@ -86,12 +87,12 @@ public class PCMPlayer extends Thread{
 	        } else if (stuff==-1) {
 	            l-=2;
 	        }
-	        for (int i=stuffsamp; i<server.getFrameSize() + stuff; i++) {
+	        for (int i=stuffsamp; i<session.getFrameSize() + stuff; i++) {
 	        	output[j++] = dithered_vol(input[l++]);
 	        	output[j++] = dithered_vol(input[l++]);
 	        }
 	    }
-	    return server.getFrameSize() + stuff;
+	    return session.getFrameSize() + stuff;
 	}
 	
 	
