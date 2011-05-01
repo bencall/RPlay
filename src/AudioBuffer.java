@@ -82,7 +82,10 @@ public class AudioBuffer {
 	    	System.err.println("SEQNO: "+readIndex);
 	    	
 			actualBufSize = writeIndex-readIndex;	// Packets in buffer
-			
+		    if(actualBufSize<0){	// If loop
+		    	actualBufSize = 65536-readIndex+ writeIndex;
+		    }
+		    
 			if(actualBufSize<1 || !synced){			// If no packets more or Not synced (flush: pause)
 				if(synced){							// If it' because there is not enough packets
 					System.err.println("Underrun!!! Not enough frames in buffer!");
@@ -115,7 +118,12 @@ public class AudioBuffer {
 		    int read = readIndex;
 		    readIndex++;
 		     
+		    // If loop
 		    actualBufSize = writeIndex-readIndex;
+		    if(actualBufSize<0){
+		    	actualBufSize = 65536-readIndex+ writeIndex;
+		    }
+		    
 		    session.updateFilter(actualBufSize); 
 		    
 		    AudioData buf = audioBuffer[read % BUFFER_FRAMES];
@@ -131,7 +139,7 @@ public class AudioBuffer {
 		    
 		    // SEQNO is stored in a short an come back to 0 when equal to 65536 (2 bytes)
 		    if(readIndex == 65536){
-		    	readIndex = 1;
+		    	readIndex = 0;
 		    }
 			return buf.data;
 
@@ -175,6 +183,9 @@ public class AudioBuffer {
 			
 			// The number of packet in buffer
 		    actualBufSize = writeIndex - readIndex;
+		    if(actualBufSize<0){
+		    	actualBufSize = 65536-readIndex+ writeIndex;
+		    }
 		    
 		    if(decoder_isStopped && actualBufSize > START_FILL){
 			    System.err.println(seqno);
@@ -183,7 +194,7 @@ public class AudioBuffer {
 		    
 		    // SEQNO is stored in a short an come back to 0 when equal to 65536 (2 bytes)
 		    if(writeIndex == 65536){
-		    	writeIndex = 1;
+		    	writeIndex = 0;
 		    }
 		}
 	}
