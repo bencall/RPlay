@@ -14,7 +14,7 @@ public class PCMPlayer extends Thread{
 	Info info;
 	SourceDataLine dataLine;
 	AudioSession session;
-	long fix_volume = 0x10000;
+	volatile long fix_volume = 0x10000;
 	short rand_a, rand_b;
 	AudioBuffer audioBuf;
 	
@@ -95,6 +95,9 @@ public class PCMPlayer extends Thread{
 	    return session.getFrameSize() + stuff;
 	}
 	
+	public void setVolume(double vol){
+		fix_volume = (long)vol;
+	}
 	
 	private short dithered_vol(int sample) {
 	    long out;

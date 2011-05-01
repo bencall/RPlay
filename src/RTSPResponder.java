@@ -192,8 +192,21 @@ public class RTSPResponder{
 
         } else if (REQ.contentEquals("FLUSH")){
         	serv.flush();
+        
         } else if (REQ.contentEquals("TEARDOWN")){
         	response.append("Connection: close\r\n");
+        	
+        } else if (REQ.contentEquals("SET_PARAMETER")){
+        	// Timing port
+        	Pattern p = Pattern.compile("volume: (.+)");
+        	Matcher m = p.matcher(packet.getContent());
+        	System.out.println(packet.getContent());
+        	if(m.find()){
+        		System.out.println("VOLUME: " + Double.parseDouble(m.group(1)));
+                double volume = (double) Math.pow(10.0,0.05*Double.parseDouble(m.group(1)));
+                serv.setVolume(65536.0 * volume);
+        	}
+        	
         } else {
         	System.out.println("REQUEST(" + REQ + "): Not Supported Yet!");
         	System.out.println(packet.getRawPacket());

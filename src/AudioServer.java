@@ -30,6 +30,8 @@ public class AudioServer implements UDPDelegate{
     AudioSession session;
     AudioBuffer audioBuf;
 
+    // The audio player
+    PCMPlayer player;
     
     /**
      * Constructor. Initiate instances vars
@@ -46,10 +48,14 @@ public class AudioServer implements UDPDelegate{
 		// Init functions
 		audioBuf = new AudioBuffer(session, this);
 		this.initRTP();
-		PCMPlayer player = new PCMPlayer(session, audioBuf);
+		player = new PCMPlayer(session, audioBuf);
 		player.start();
 	}
 
+	
+	public void setVolume(double vol){
+		player.setVolume(vol);
+	}
 	
 	/**
 	 * Return the server port for the bonjour service

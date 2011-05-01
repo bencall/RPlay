@@ -78,9 +78,7 @@ public class AudioBuffer {
 	 * @return
 	 */
 	public int[] getNextFrame(){
-	    synchronized (lock) {
-	    	System.err.println("SEQNO: "+readIndex);
-	    	
+	    synchronized (lock) {	    	
 			actualBufSize = writeIndex-readIndex;	// Packets in buffer
 		    if(actualBufSize<0){	// If loop
 		    	actualBufSize = 65536-readIndex+ writeIndex;
@@ -188,7 +186,6 @@ public class AudioBuffer {
 		    }
 		    
 		    if(decoder_isStopped && actualBufSize > START_FILL){
-			    System.err.println(seqno);
 			    lock.notify();
 		    }
 		    
