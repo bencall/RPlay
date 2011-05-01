@@ -25,5 +25,5 @@ Changelog
 * 0.01a  April 22, 2011
     * initial release: able to communicate with iTunes (RTSP server ok)
 * 0.01b  May 01, 2011
-    * First working version. Still buggy. Need to implement the volume parameter. Usable.    
+    * First working version. Still buggy. Usable.    
 
