@@ -30,7 +30,7 @@ public class BonjourEmitter implements RegisterListener{
 		    txtRecord.set("et", "0,1");
 		    txtRecord.set("cn", "0,1");
 		    txtRecord.set("vn", "3");
-		    
+		    		    
 		    // Il faut un serial bidon pour se connecter
 		    if (identifier == null){
 		    	identifier = "";

@@ -1,15 +1,18 @@
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.io.StringReader;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketAddress;
 import java.security.KeyPair;
 import java.security.Security;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.net.InetSocketAddress;
 
 import javax.crypto.Cipher;
 
@@ -30,7 +33,8 @@ public class RTSPResponder{
 	private int[] fmtp;
 	private byte[] aesiv, aeskey;			// ANNOUNCE request infos
 	private AudioServer serv; 				// Audio listener
-	
+	byte[] hwAddr;
+	 
 	private String key =  
 		"-----BEGIN RSA PRIVATE KEY-----\n"
 		+"MIIEpQIBAAKCAQEA59dE8qLieItsH1WgjrcFRKj6eUWqi+bGLOX1HL3U3GhC/j0Qg90u3sG/1CUt\n"
@@ -61,7 +65,9 @@ public class RTSPResponder{
 	 * @param port Will try to use the defined port. If not possible, check getPort() to know which port was taken.
 	 * @throws IOException 
 	 */
-	public RTSPResponder(int port) throws IOException{
+	public RTSPResponder(int port, byte[] hwAddr) throws IOException{
+		this.hwAddr = hwAddr;
+		
 		// Try to take the given port. If not possible, take another. If not possible: ERROR
         try {
 			sock = new ServerSocket(5000);
@@ -69,6 +75,13 @@ public class RTSPResponder{
 			sock = new ServerSocket(); 
 		}
 	}
+	
+	
+	public void stop() throws IOException{
+		serv.close();
+		sock.close();
+	}
+	
 	
 	/**
 	 * @return port number
@@ -78,6 +91,7 @@ public class RTSPResponder{
 	}
 	
 	public void handlePacket(RTSPPacket packet){
+		System.out.println(packet.getRawPacket());
 		
 		// We init the response holder
 		StringBuilder response = new StringBuilder("RTSP/1.0 200 OK\r\n");
@@ -91,33 +105,39 @@ public class RTSPResponder{
     		byte[] decoded = Base64.decodeBase64(challenge);
 
     		// IP byte array
-    		byte[] ip = socket.getLocalAddress().getAddress();
+    		//byte[] ip = socket.getLocalAddress().getAddress();
+    		SocketAddress localAddress = socket.getLocalSocketAddress(); //.getRemoteSocketAddress();
+    		    		
+    		byte[] ip =  ((InetSocketAddress) localAddress).getAddress().getAddress();
     		
-    		// Identifier byte array
-    		byte[] identifier = {(byte)(0xF1 & 0xFF), (byte)(0xF1 & 0xFF), (byte)(0xF1 & 0xFF), (byte)(0xF1 & 0xFF), (byte)(0xF1 & 0xFF), (byte)(0xF1 & 0xFF)};
-    		 
-    		// New byte array of total size
-    		byte[] result = new byte[decoded.length + ip.length + identifier.length];
-    		
-    		// Copy everything
-    		for(int i=0; i<decoded.length; i++){
-    			result[i] = decoded[i];
-    		}
-    		for(int i=0; i<ip.length; i++){
-    			result[i+decoded.length] = ip[i];
-    		}
-    		for(int i=0; i<identifier.length; i++){
-    			result[i+decoded.length+ip.length] = identifier[i];
-    		}
+    		ByteArrayOutputStream out = new ByteArrayOutputStream();
+    		// Challenge
+    		try {
+				out.write(decoded);
+				// IP-Address
+				out.write(ip);
+				// HW-Addr
+				out.write(hwAddr);
+				
+				// Pad to 32 Bytes
+				int padLen = 32 - out.size();
+				for(int i = 0; i < padLen; ++i) {
+					out.write(0x00);
+				}
+				
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+
     		 
     		// RSA
-    		byte[] crypted = this.encryptRSA(result);
+    		byte[] crypted = this.encryptRSA(out.toByteArray());
     		
     		// Encode64
     		String ret = Base64.encodeBase64String(crypted);
     		
     		// On retire les ==
-	        ret = ret.substring(0,ret.length()-2)+ret.substring(ret.length());
+	        ret = ret.replace("=", "").replace("\r", "").replace("\n", "");
 
     		// Write
         	response.append("Apple-Response: " + ret + "\r\n");	        	
@@ -200,9 +220,7 @@ public class RTSPResponder{
         	// Timing port
         	Pattern p = Pattern.compile("volume: (.+)");
         	Matcher m = p.matcher(packet.getContent());
-        	System.out.println(packet.getContent());
         	if(m.find()){
-        		System.out.println("VOLUME: " + Double.parseDouble(m.group(1)));
                 double volume = (double) Math.pow(10.0,0.05*Double.parseDouble(m.group(1)));
                 serv.setVolume(65536.0 * volume);
         	}
@@ -214,6 +232,8 @@ public class RTSPResponder{
         
     	// We close the response
     	response.append("\r\n");
+
+		System.out.println(response);
 
     	// Write the packet to the wire
     	BufferedWriter oStream;

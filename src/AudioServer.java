@@ -22,6 +22,7 @@ public class AudioServer implements UDPDelegate{
 	
 	// Sockets
 	private DatagramSocket sock, csock;
+	UDPListener l1, l2;
    
 	// client address
 	private InetAddress rtpClient;
@@ -52,6 +53,13 @@ public class AudioServer implements UDPDelegate{
 		player.start();
 	}
 
+	public void close(){
+		player.interrupt();
+		l1.interrupt();
+		l2.interrupt();
+		sock.close();
+		csock.close();
+	}
 	
 	public void setVolume(double vol){
 		player.setVolume(vol);
@@ -81,10 +89,8 @@ public class AudioServer implements UDPDelegate{
 			break;
 		}
 		
-		@SuppressWarnings("unused")
-		UDPListener l1 = new UDPListener(sock, this);
-		@SuppressWarnings("unused")
-		UDPListener l2 = new UDPListener(csock, this);
+		l1 = new UDPListener(sock, this);
+		l2 = new UDPListener(csock, this);
 	}
 	
 	/**
