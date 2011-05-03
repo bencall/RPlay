@@ -9,6 +9,8 @@ import java.net.UnknownHostException;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JTextField;
 
 /**
  * Main class
@@ -20,6 +22,7 @@ import javax.swing.JFrame;
 public class Rplay extends Thread implements ActionListener{
 	private boolean on = false;
 	private JButton bouton;
+	private JTextField nameField;
 	RTSPResponder repondeur;
 	
 	/**
@@ -34,16 +37,20 @@ public class Rplay extends Thread implements ActionListener{
 		
 		JFrame window = new JFrame();
 		window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		window.setSize(200, 65);
+//		window.setSize(380, 100);
 		window.setTitle("RPlay");
 		
 		java.awt.Container contenu = window.getContentPane();
 		contenu.setLayout(new FlowLayout());
 		
+		nameField = new JTextField(15);
 		bouton = new JButton("Start Airport Express");
 		bouton.addActionListener(this);
+		contenu.add(new JLabel("AP Name: "));
+		contenu.add(nameField);
 		contenu.add(bouton);
 		
+		window.pack();
 		window.setVisible(true);
 	}
 	
@@ -75,7 +82,7 @@ public class Rplay extends Thread implements ActionListener{
 			// DNS Emitter (Bonjour)
 			repondeur = new RTSPResponder(port, hwAddr);
 			@SuppressWarnings("unused")
-			BonjourEmitter emetteur = new BonjourEmitter("Benj", sb.toString(), repondeur.getPort());
+			BonjourEmitter emetteur = new BonjourEmitter(nameField.getText(), sb.toString(), repondeur.getPort());
 			repondeur.listen();
 
 

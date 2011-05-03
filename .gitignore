@@ -10,3 +10,6 @@
 /bin/com/beatofthedrum/alacdecoder/License.txt
 /bin/License.txt
 /.classpath
+/bin/.DS_Store
+/libs/.DS_Store
+/src/.DS_Store
