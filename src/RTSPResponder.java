@@ -8,7 +8,6 @@ import java.io.StringReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
-import java.net.SocketException;
 import java.security.KeyPair;
 import java.security.Security;
 import java.util.regex.Matcher;
