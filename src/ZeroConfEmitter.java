@@ -2,7 +2,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Hashtable;
-import java.util.Map;
 
 import javax.jmdns.JmDNS;
 import javax.jmdns.JmmDNS;
@@ -22,7 +21,6 @@ public class ZeroConfEmitter{
 	 private static JmmDNS dns;
 	
 	 public ZeroConfEmitter(String name, String identifier, int port) throws UnknownHostException, IOException, InterruptedException{
-
 	    // Announce Raop Service
 	    Hashtable<String, String> props = new Hashtable<String, String>();
 	    props.put("txtvers", "1");
@@ -38,10 +36,16 @@ public class ZeroConfEmitter{
 	    props.put("cn", "0,1");
 	    props.put("vn", "3");
 
-	    ServiceInfo info = ServiceInfo.create("._raop._tcp", identifier+"@"+name, port, "dfjgjgghhfh");
+	    //ServiceInfo info = ServiceInfo.create("._raop._tcp", identifier+"@"+name, port, "dfjgjgghhfh");
+	    //info.setText(props);
+	    
+	    
+	    // Announce Raop Service
+	    ServiceInfo info = ServiceInfo.create(identifier+"@"+name + "._raop._tcp.local", identifier+"@"+name, port, "tp=UDP sm=false sv=false ek=1 et=0,1 cn=0,1 ch=2 ss=16 sr=44100 pw=false vn=3 txtvers=1");
 	    info.setText(props);
 	    
 	    dns = JmmDNS.Factory.getInstance();
+	    ((JmmDNSImpl)dns).inetAddressAdded(new NetworkTopologyEventImpl(JmDNS.create(InetAddress.getByName("localhost")), InetAddress.getByName("localhost")));
 
 	    dns.registerService(info);
 	    System.out.println("Service registered");

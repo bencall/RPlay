@@ -22,7 +22,7 @@ public class AudioServer implements UDPDelegate{
 	
 	// Sockets
 	private DatagramSocket sock, csock;
-	private UDPListener l1, l2;
+	private UDPListener l1;
    
 	// client address
 	private InetAddress rtpClient;
@@ -92,7 +92,6 @@ public class AudioServer implements UDPDelegate{
 		}
 		
 		l1 = new UDPListener(sock, this);
-		//l2 = new UDPListener(csock, this);
 	}
 	
 	/**

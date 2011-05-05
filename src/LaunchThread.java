@@ -6,17 +6,20 @@ import java.net.UnknownHostException;
 
 
 /**
- * Main class
+ * LaunchThread class which starts services
  * @author bencall
  *
  */
-
-//
 public class LaunchThread extends Thread{
 	private RTSPResponder repondeur;
 	private BonjourEmitter emetteur;
 	private String name;
+	ZeroConfEmitter emetteur1;
 	
+	/**
+	 * Constructor
+	 * @param name
+	 */
 	public LaunchThread(String name){
 		super();
 		this.name = name;
@@ -48,7 +51,7 @@ public class LaunchThread extends Thread{
 			// DNS Emitter (Bonjour)
 			repondeur = new RTSPResponder(port, hwAddr);
 			emetteur = new BonjourEmitter(name, sb.toString(), repondeur.getPort());
-			//emetteur1 = new ZeroConfEmitter(nameField.getText(), sb.toString(), repondeur.getPort());
+			//emetteur1 = new ZeroConfEmitter(name, sb.toString(), repondeur.getPort());
 			repondeur.start();
 
 
@@ -60,10 +63,10 @@ public class LaunchThread extends Thread{
 	
 	public synchronized void stopThread(){
 		emetteur.stop();
+		//emetteur1.stop();
 		try {
 			repondeur.stopThread();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}

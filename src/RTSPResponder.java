@@ -8,6 +8,7 @@ import java.io.StringReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.net.SocketException;
 import java.security.KeyPair;
 import java.security.Security;
 import java.util.regex.Matcher;
@@ -95,6 +96,7 @@ public class RTSPResponder extends Thread{
 	}
 	
 	public void handlePacket(RTSPPacket packet){		
+		
 		// We init the response holder
 		StringBuilder response = new StringBuilder("RTSP/1.0 200 OK\r\n");
 		response.append("Audio-Jack-Status: connected; type=analog\r\n");
@@ -235,6 +237,9 @@ public class RTSPResponder extends Thread{
     	// We close the response
     	response.append("\r\n");
 
+		System.out.println(packet.getRawPacket());
+		System.out.println(response.toString());
+		
     	// Write the packet to the wire
     	BufferedWriter oStream;
     	try {			
@@ -310,39 +315,43 @@ public class RTSPResponder extends Thread{
 	 */
 	public void run() {
 		boolean fin = stopThread;
-		BufferedReader in;
 		try {
 			
 			// Socket & Streams
 			// Socket init
-			if(socket == null){
+			if(socket == null && !stopThread){
 				socket = sock.accept();
 			}
-			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			
-			String packet = "";
-			while(!fin){
-				// Buffer
-				char[] buffer = new char[4096];
-				in.read(buffer);
-				String temp = new String(buffer);
-				packet = packet + temp;
+			if(socket != null){
+				BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 				
-				// If packet completed
-				Pattern p = Pattern.compile("(.*)\r\n\r\n");  
-		        Matcher m = p.matcher(packet);  
-				if(m.find()){
-					//System.out.println(packet);
-					// We handle the packet
-					RTSPPacket paquet = new RTSPPacket(packet);
-					this.handlePacket(paquet);
-					packet = "";
-					break;
+				String packet = "";
+				while(!fin){
+					// Buffer
+					char[] buffer = new char[4096];
+					in.read(buffer);
+					String temp = new String(buffer);
+					packet = packet + temp;
+					
+					// If packet completed
+					Pattern p = Pattern.compile("(.*)\r\n\r\n");  
+			        Matcher m = p.matcher(packet);  
+					if(m.find()){
+						//System.out.println(packet);
+						// We handle the packet
+						RTSPPacket paquet = new RTSPPacket(packet);
+						this.handlePacket(paquet);
+						packet = "";
+						break;
+					}
+					
+					synchronized(this){
+						fin = stopThread;
+					}
 				}
-				
-				synchronized(this){
-					fin = stopThread;
-				}
+				in.close();
+				socket.close();
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
