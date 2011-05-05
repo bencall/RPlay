@@ -10,13 +10,14 @@ import javax.sound.sampled.DataLine.Info;
  *
  */
 public class PCMPlayer extends Thread{
-	AudioFormat audioFormat;
-	Info info;
-	SourceDataLine dataLine;
-	AudioSession session;
-	volatile long fix_volume = 0x10000;
-	short rand_a, rand_b;
-	AudioBuffer audioBuf;
+	private AudioFormat audioFormat;
+	private Info info;
+	private SourceDataLine dataLine;
+	private AudioSession session;
+	private volatile long fix_volume = 0x10000;
+	private short rand_a, rand_b;
+	private AudioBuffer audioBuf;
+	private boolean stopThread = false;
 	
 	public PCMPlayer(AudioSession session, AudioBuffer audioBuf){
 		super();
@@ -38,7 +39,9 @@ public class PCMPlayer extends Thread{
 	}
 	
 	public void run(){
-		while(true){
+		boolean fin = stopThread;
+		
+		while(!fin){
 			int[] buf = audioBuf.getNextFrame();
 			if(buf==null){
 				continue;
@@ -56,11 +59,20 @@ public class PCMPlayer extends Thread{
 			}
 			
 			dataLine.write(input, 0, k*4);
+			
+			// Stop
+			synchronized(this) {
+				Thread.yield();
+				fin = this.stopThread;
+			} 
 		}
 	}
 	
+	public synchronized void stopThread(){
+		this.stopThread = true;
+	}
+	
 	private int stuff_buffer(double playback_rate, int[] input, int[] output) {
-		
 	    int stuffsamp = session.getFrameSize();
 	    int stuff = 0;
 	    double p_stuff;

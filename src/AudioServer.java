@@ -22,17 +22,17 @@ public class AudioServer implements UDPDelegate{
 	
 	// Sockets
 	private DatagramSocket sock, csock;
-	UDPListener l1, l2;
+	private UDPListener l1, l2;
    
 	// client address
 	private InetAddress rtpClient;
 
 	// Audio infos and datas
-    AudioSession session;
-    AudioBuffer audioBuf;
+	private AudioSession session;
+	private AudioBuffer audioBuf;
 
     // The audio player
-    PCMPlayer player;
+	private PCMPlayer player;
     
     /**
      * Constructor. Initiate instances vars
@@ -53,11 +53,13 @@ public class AudioServer implements UDPDelegate{
 		player.start();
 	}
 
-	public void close(){
-		player.interrupt();
-		l1.interrupt();
-		l2.interrupt();
-		sock.close();
+	public void stop(){
+		player.stopThread();
+		l1.stopThread();
+		//l2.stopThread();
+		synchronized(sock){
+			sock.close();
+		}
 		csock.close();
 	}
 	
@@ -90,7 +92,7 @@ public class AudioServer implements UDPDelegate{
 		}
 		
 		l1 = new UDPListener(sock, this);
-		l2 = new UDPListener(csock, this);
+		//l2 = new UDPListener(csock, this);
 	}
 	
 	/**

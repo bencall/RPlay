@@ -12,8 +12,9 @@ public class UDPListener extends Thread{
 	public static final int MAX_PACKET = 2048;
 
 	// Variables d'instances
-	DatagramSocket socket;
-	UDPDelegate delegate;
+	private DatagramSocket socket;
+	private UDPDelegate delegate;
+	private boolean stopThread = false;
 	
 	public UDPListener(DatagramSocket socket, UDPDelegate delegate){
 		super();
@@ -23,15 +24,29 @@ public class UDPListener extends Thread{
 	}
 	
 	  public void run() {
-		  while(true){
+		  boolean fin = stopThread;
+		  while(!fin){
 			  byte[] buffer = new byte[MAX_PACKET];
 			  DatagramPacket p = new DatagramPacket(buffer, buffer.length);
 			  try {
-				  socket.receive(p);
-				  delegate.packetReceived(socket, p);
+				  synchronized(socket){
+					  if(socket != null){
+						  socket.receive(p);
+						  delegate.packetReceived(socket, p);
+					  }
+				  }
 			  } catch (IOException e) {
 				  e.printStackTrace();
 			  }
+			  
+			  // Stop
+			  synchronized(this) {
+                  fin = this.stopThread;
+			  } 
 		  }
+	  }
+	  
+	  public synchronized void stopThread(){
+		  this.stopThread = true;
 	  }
 }

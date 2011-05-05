@@ -17,7 +17,7 @@ public class BonjourEmitter implements RegisterListener{
 	DNSSDRegistration r;
 	
 	public BonjourEmitter(String name, String identifier, int port) throws DNSSDException{
-		    TXTRecord txtRecord = new TXTRecord(  );
+		    TXTRecord txtRecord = new TXTRecord();
 		    txtRecord.set("txtvers", "1");
 		    txtRecord.set("pw", "false");
 		    txtRecord.set("sr", "44100");
@@ -68,3 +68,4 @@ public class BonjourEmitter implements RegisterListener{
 	    System.out.println("           Domain: " + domain); 
 	 } 
 }
+

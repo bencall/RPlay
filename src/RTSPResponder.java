@@ -26,7 +26,7 @@ import org.bouncycastle.openssl.PEMReader;
  * @author bencall
  *
  */
-public class RTSPResponder{
+public class RTSPResponder extends Thread{
 	
 	private ServerSocket sock;				// Initial socket
 	private Socket socket;					// Connected socket
@@ -34,6 +34,7 @@ public class RTSPResponder{
 	private byte[] aesiv, aeskey;			// ANNOUNCE request infos
 	private AudioServer serv; 				// Audio listener
 	byte[] hwAddr;
+	boolean stopThread = false;
 	 
 	private String key =  
 		"-----BEGIN RSA PRIVATE KEY-----\n"
@@ -77,8 +78,11 @@ public class RTSPResponder{
 	}
 	
 	
-	public void stop() throws IOException{
-		serv.close();
+	public void stopThread() throws IOException{
+		stopThread = true;
+		if(serv != null){
+			serv.stop();
+		}
 		sock.close();
 	}
 	
@@ -90,9 +94,7 @@ public class RTSPResponder{
 		return sock.getLocalPort();
 	}
 	
-	public void handlePacket(RTSPPacket packet){
-		System.out.println(packet.getRawPacket());
-		
+	public void handlePacket(RTSPPacket packet){		
 		// We init the response holder
 		StringBuilder response = new StringBuilder("RTSP/1.0 200 OK\r\n");
 		response.append("Audio-Jack-Status: connected; type=analog\r\n");
@@ -233,8 +235,6 @@ public class RTSPResponder{
     	// We close the response
     	response.append("\r\n");
 
-		System.out.println(response);
-
     	// Write the packet to the wire
     	BufferedWriter oStream;
     	try {			
@@ -249,7 +249,7 @@ public class RTSPResponder{
     		}
     		
     		// We listen for a new connection or new data
-    		this.listen();
+    		this.run();
     		
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -308,7 +308,8 @@ public class RTSPResponder{
 	/**
 	 * Thread to listen packets
 	 */
-	public void listen() {
+	public void run() {
+		boolean fin = stopThread;
 		BufferedReader in;
 		try {
 			
@@ -320,7 +321,7 @@ public class RTSPResponder{
 			in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 			
 			String packet = "";
-			while(true){
+			while(!fin){
 				// Buffer
 				char[] buffer = new char[4096];
 				in.read(buffer);
@@ -337,6 +338,10 @@ public class RTSPResponder{
 					this.handlePacket(paquet);
 					packet = "";
 					break;
+				}
+				
+				synchronized(this){
+					fin = stopThread;
 				}
 			}
 		} catch (IOException e) {
