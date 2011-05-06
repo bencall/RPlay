@@ -16,13 +16,22 @@ Thanks
 ------
 Big thanks to David Hammerton for releasing an ALAC decoder and to soiaf for porting it to Java (https://github.com/soiaf/Java-Apple-Lossless-decoder).
 Thanks to Jame Laird for his C implementation (shairport - https://github.com/albertz/shairport)
+Thanks to anyone involved in one of the libraries i used for creating this software.
+
+Libraries & References
+----------------------
+These libraries are included in RPlay:
+* http://www.bouncycastle.org/latest_releases.html
+* http://commons.apache.org/
+* https://github.com/albertz/shairport
+* https://github.com/soiaf/Java-Apple-Lossless-decoder
 
 Contributors
 ------------
 * [David Hammerton]
 * [James Laird]
 * [soiaf]
-* Everyone who has helped with shairport or the alac decoder (see their README)
+* Everyone who has helped with shairport, the alac decoder (or the java port of it), apache commons lib or bouncycastle lib (see their README)
 
 Changelog
 ---------
@@ -30,6 +39,6 @@ Changelog
     * initial release: able to communicate with iTunes (RTSP server ok)
 * 0.01b  May 01, 2011
     * First working version. Still buggy. Usable.   
-* 0.01
+* 0.01   May 06, 2011
     * First binary version. Need feedback.
 
