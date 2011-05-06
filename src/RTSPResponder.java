@@ -147,7 +147,6 @@ public class RTSPResponder extends Thread{
     		
     	} 
     	
-    	
 		// Paquet request
 		String REQ = packet.getReq();
         if(REQ.contentEquals("OPTIONS")){         // OPTIONS
