@@ -27,7 +27,7 @@ public class LaunchThread extends Thread{
 	
 	public void run(){
 		int port = 5000;
-		byte[] hwAddr = null;;
+		byte[] hwAddr = null;
 		
 		InetAddress local;
 		try {
@@ -41,6 +41,7 @@ public class LaunchThread extends Thread{
 		} catch (SocketException e) {
 			e.printStackTrace();
 		}
+		
 	    StringBuilder sb = new StringBuilder();
 	    for (byte b : hwAddr) {
 	      sb.append(String.format("%02x", b));

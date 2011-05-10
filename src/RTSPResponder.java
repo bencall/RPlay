@@ -27,7 +27,7 @@ import org.bouncycastle.openssl.PEMReader;
  *
  */
 public class RTSPResponder extends Thread{
-	
+
 	private ServerSocket sock;				// Initial socket
 	private Socket socket;					// Connected socket
 	private int[] fmtp;
@@ -35,7 +35,7 @@ public class RTSPResponder extends Thread{
 	private AudioServer serv; 				// Audio listener
 	byte[] hwAddr;
 	boolean stopThread = false;
-	 
+
 	private String key =  
 		"-----BEGIN RSA PRIVATE KEY-----\n"
 		+"MIIEpQIBAAKCAQEA59dE8qLieItsH1WgjrcFRKj6eUWqi+bGLOX1HL3U3GhC/j0Qg90u3sG/1CUt\n"
@@ -68,7 +68,7 @@ public class RTSPResponder extends Thread{
 	 */
 	public RTSPResponder(int port, byte[] hwAddr) throws IOException{
 		this.hwAddr = hwAddr;
-		
+
 		// Try to take the given port. If not possible, take another. If not possible: ERROR
         try {
 			sock = new ServerSocket(5000);
@@ -76,8 +76,8 @@ public class RTSPResponder extends Thread{
 			sock = new ServerSocket(); 
 		}
 	}
-	
-	
+
+
 	public void stopThread() throws IOException{
 		stopThread = true;
 		if(serv != null){
@@ -85,17 +85,17 @@ public class RTSPResponder extends Thread{
 		}
 		sock.close();
 	}
-	
-	
+
+
 	/**
 	 * @return port number
 	 */
 	public int getPort(){
 		return sock.getLocalPort();
 	}
-	
+
 	public void handlePacket(RTSPPacket packet){		
-		
+
 		// We init the response holder
 		StringBuilder response = new StringBuilder("RTSP/1.0 200 OK\r\n");
 		response.append("Audio-Jack-Status: connected; type=analog\r\n");
@@ -121,13 +121,13 @@ public class RTSPResponder extends Thread{
 				out.write(ip);
 				// HW-Addr
 				out.write(hwAddr);
-				
+
 				// Pad to 32 Bytes
 				int padLen = 32 - out.size();
 				for(int i = 0; i < padLen; ++i) {
 					out.write(0x00);
 				}
-				
+
 			} catch (IOException e) {
 				e.printStackTrace();
 			}
@@ -200,7 +200,7 @@ public class RTSPResponder extends Thread{
             
         	// Launching audioserver
 			serv = new AudioServer(new AudioSession(aesiv, aeskey, fmtp, controlPort, timingPort));
-			
+
         	response.append("Transport: " + packet.valueOfHeader("Transport") + ";server_port=" + serv.getServerPort() + "\r\n");
         			
         	// ??? Why ???
@@ -237,7 +237,7 @@ public class RTSPResponder extends Thread{
 
 		System.out.println(packet.getRawPacket());
 		System.out.println(response.toString());
-		
+
     	// Write the packet to the wire
     	BufferedWriter oStream;
     	try {			
@@ -270,7 +270,7 @@ public class RTSPResponder extends Thread{
 
 	        PEMReader pemReader = new PEMReader(new StringReader(key)); 
 	        KeyPair pObj = (KeyPair) pemReader.readObject(); 
-	        	         
+
 	        // Encrypt
 	        Cipher cipher = Cipher.getInstance("RSA/NONE/PKCS1Padding"); 
 	        cipher.init(Cipher.ENCRYPT_MODE, pObj.getPrivate());
@@ -279,10 +279,10 @@ public class RTSPResponder extends Thread{
 		}catch(Exception e){
 			e.printStackTrace();
 		}
-		
+
 		return null;
 	}
-	
+
 	/**
 	 * Decrypt with RSA priv key
 	 * @param array
@@ -292,10 +292,10 @@ public class RTSPResponder extends Thread{
 		try{
 			Security.addProvider(new BouncyCastleProvider());
 
-			// La clŽ RSA
+			// La clï¿½ RSA
 	        PEMReader pemReader = new PEMReader(new StringReader(key)); 
 	        KeyPair pObj = (KeyPair) pemReader.readObject(); 
-	        	         
+
 	        // Encrypt
 	        Cipher cipher = Cipher.getInstance("RSA/NONE/OAEPPadding"); 
 	        cipher.init(Cipher.DECRYPT_MODE, pObj.getPrivate());
@@ -304,26 +304,26 @@ public class RTSPResponder extends Thread{
 		}catch(Exception e){
 			e.printStackTrace();
 		}
-		
+
 		return null;
 	}
-	
+
 	/**
 	 * Thread to listen packets
 	 */
 	public void run() {
 		boolean fin = stopThread;
 		try {
-			
+
 			// Socket & Streams
 			// Socket init
 			if(socket == null && !stopThread){
 				socket = sock.accept();
 			}
-			
+
 			if(socket != null){
 				BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-				
+
 				String packet = "";
 				while(!fin){
 					// Buffer
@@ -331,7 +331,7 @@ public class RTSPResponder extends Thread{
 					in.read(buffer);
 					String temp = new String(buffer);
 					packet = packet + temp;
-					
+
 					// If packet completed
 					Pattern p = Pattern.compile("(.*)\r\n\r\n");  
 			        Matcher m = p.matcher(packet);  
@@ -343,7 +343,7 @@ public class RTSPResponder extends Thread{
 						packet = "";
 						break;
 					}
-					
+
 					synchronized(this){
 						fin = stopThread;
 					}
