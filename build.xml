@@ -1,0 +1,53 @@
+<project name="ShairPort" default="dist" basedir=".">
+
+	<property name="src" location="src" />
+	<property name="lib" location="libs" />
+	<property name="bin" location="bin" />
+	<property name="dist" location="Binaries" />
+	<property name="dist_lib" location="${dist}/Rplay_lib" />
+	<property name="dist_jar" location="${dist}/Rplay.jar" />
+	
+	<path id="lib_cp">
+    	<fileset dir="${lib}">
+    		<include name="**/*.jar"/>
+    	</fileset>
+	</path>
+	
+	<target name="build">
+		<mkdir dir="${bin}"/>
+		<javac srcdir="${src}" destdir="${bin}"
+				classpathref="lib_cp" includeantruntime="false"
+		 		verbose="true" debug="true" 
+				source="1.6" target="1.6" />
+	</target>
+
+	<target name="dist" depends="build">
+		<mkdir dir="${dist}"/>
+		<manifestclasspath property="jar_cp" jarfile="${dist_jar}">
+			<classpath>
+  				<fileset dir="${dist_lib}">
+  					<include name="**/*.jar"/>
+   				</fileset>	
+			</classpath>
+		</manifestclasspath>
+		<jar destfile="${dist_jar}">
+			<fileset dir="${bin}"/>
+			<manifest>
+				<attribute name="Main-Class" value="Rplay"/>
+				<attribute name="Class-Path" value="${jar_cp}" />
+			</manifest>
+		</jar>
+
+		<mkdir dir="${dist_lib}"/>
+		<copy todir="${dist_lib}" flatten="true">
+			<path refid="lib_cp" />
+		</copy>
+	</target>
+	
+	<target name="run">
+		<java fork="true" classname="Rplay">
+			<classpath path="${dist_jar}"/>
+		</java>
+	</target>
+
+</project>
