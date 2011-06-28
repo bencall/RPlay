@@ -45,6 +45,12 @@
 	</target>
 	
 	<target name="run">
+		<!--
+		<java fork="true" classname="RPlayNoGui">
+			<classpath path="${dist_jar}"/>
+			<arg value="myAirport"/>
+		</java>
+		-->
 		<java fork="true" classname="Rplay">
 			<classpath path="${dist_jar}"/>
 		</java>
