@@ -73,7 +73,6 @@ public class RTSPPacket {
 	}
 
 	public int getCode(){
-		
 		return 200;
 	}
 	
@@ -83,5 +82,10 @@ public class RTSPPacket {
 			return null;
 		}
 		return headerContent.elementAt(i);
+	}
+	
+	@Override
+	public String toString() {
+		return " < " + rawPacket.replaceAll("\r\n", "\r\n < ");
 	}
 }
