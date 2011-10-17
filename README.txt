@@ -31,6 +31,8 @@ Contributors
 * [David Hammerton]
 * [James Laird]
 * [soiaf]
+* [adeward] (https://github.com/adeward)
+* [jblezoray] (https://github.com/jblezoray)
 * Everyone who has helped with shairport, the alac decoder (or the java port of it), apache commons lib or bouncycastle lib (see their README)
 
 Changelog
