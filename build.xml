@@ -37,7 +37,7 @@
 			<fileset dir="${bin}"/>
 			<manifest>
 				<attribute name="Main-Class" value="RPlayNoGui"/>
-				<attribute name="Class-Path" value="${jar_cp}" />
+				<attribute name="Class-Path" value="${jar_nogui}" />
 			</manifest>
 		</jar>
 		
@@ -52,7 +52,7 @@
 			<fileset dir="${bin}"/>
 			<manifest>
 				<attribute name="Main-Class" value="RPlay"/>
-				<attribute name="Class-Path" value="${jar_cp}" />
+				<attribute name="Class-Path" value="${jar_gui}" />
 			</manifest>
 		</jar>
 	</target>
