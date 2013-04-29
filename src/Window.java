@@ -5,6 +5,7 @@ import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JTextField;
+import javax.swing.JOptionPane;
 import java.util.prefs.Preferences;
 
 /**
@@ -15,8 +16,8 @@ import java.util.prefs.Preferences;
 
 //
 public class Window implements ActionListener{
-	private boolean on = false;
-	private JButton bouton;
+	private JButton startButton;
+	private JButton stopButton;
 	private JTextField nameField;
 	private LaunchThread t;
 	private Preferences prefs;
@@ -28,52 +29,58 @@ public class Window implements ActionListener{
 		new RPlay();
 	}
 	
-	public Window(){		
-		
+	public Window() {
 		prefs = Preferences.userRoot().node(this.getClass().getName());
+		String apname = prefs.get("apname", "");
+		
+		nameField = new JTextField(apname,15);
+		startButton = new JButton("Start");
+		stopButton = new JButton("Stop");
+		startButton.addActionListener(this);
+		stopButton.addActionListener(this);
+		startButton.setEnabled(true);
+		stopButton.setEnabled(false);
 		
 		JFrame window = new JFrame();
 		window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-//		window.setSize(380, 100);
 		window.setTitle("RPlay");
+		java.awt.Container content = window.getContentPane();
+		content.setLayout(new FlowLayout());
 		
-		java.awt.Container contenu = window.getContentPane();
-		contenu.setLayout(new FlowLayout());
-		
-		String apname = prefs.get("apname", "");  // Get the default AP name
-
-		nameField = new JTextField(apname,15);
-		bouton = new JButton("Start Airport Express");
-		bouton.addActionListener(this);
-		contenu.add(new JLabel("AP name: "));
-		contenu.add(nameField);
-		contenu.add(bouton);
+		content.add(new JLabel("AP name: "));
+		content.add(nameField);
+		content.add(startButton);
+		content.add(stopButton);
 		
 		window.pack();
 		window.setVisible(true);
 		
 		// If was previously started, start it now
 		if (prefs.getBoolean("launched", true)) {
-			bouton.doClick();
+			startButton.doClick();
 		}
 	}
 
 	@Override
-	public void actionPerformed(ActionEvent arg0) {
-		if(!on){
+	public void actionPerformed(ActionEvent event) {
+		if(event.getSource() == startButton) {
 			t = new LaunchThread(nameField.getText());
 			t.start();
 			
-			on = true;
 			prefs.put("apname", nameField.getText());
 			prefs.putBoolean("launched", true); // Used on next launch
-			bouton.setText("Stop Airport Express");
-		} else {
+			
+			startButton.setEnabled(false);
+			stopButton.setEnabled(true);
+		} else if(event.getSource() == stopButton) {
 			t.stopThread();
 			
-			on = false;
 			prefs.putBoolean("launched", false); // Used on next launch
-			bouton.setText("Start Airport Express");
+			
+			startButton.setEnabled(true);
+			stopButton.setEnabled(false);
+		} else {
+			JOptionPane.showMessageDialog(null, "What are you up to?", "?!", JOptionPane.QUESTION_MESSAGE);
 		}
 	}
 
