@@ -52,13 +52,9 @@ public class Window implements ActionListener{
 		window.pack();
 		window.setVisible(true);
 		
-		// If was previously Started, start it now
-		if (prefs.getBoolean("launched", false)) {
-			// TODO: Refactor so no duplication of code below
-			on = true;			
-			t = new LaunchThread(nameField.getText());
-			t.start();
-			bouton.setText("Stop Airport Express");
+		// If was previously started, start it now
+		if (prefs.getBoolean("launched", true)) {
+			bouton.doClick();
 		}
 	}
 
