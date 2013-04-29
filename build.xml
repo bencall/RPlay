@@ -1,11 +1,9 @@
 <project name="ShairPort" default="dist" basedir=".">
 
 	<property name="src" location="src" />
-	<property name="lib" location="libs" />
+	<property name="lib" location="lib" />
 	<property name="bin" location="bin" />
-	<property name="dist" location="Binaries" />
-	<property name="dist_lib" location="${dist}/Rplay_lib" />
-	<property name="dist_jar" location="${dist}/Rplay.jar" />
+	<property name="dist" location="DIST" />
 	
 	<path id="lib_cp">
     	<fileset dir="${lib}">
@@ -23,36 +21,49 @@
 
 	<target name="dist" depends="build">
 		<mkdir dir="${dist}"/>
-		<manifestclasspath property="jar_cp" jarfile="${dist_jar}">
+		<mkdir dir="${dist}/lib"/>
+		<copy todir="${dist}/lib" flatten="true">
+			<path refid="lib_cp" />
+		</copy>
+		
+		<manifestclasspath property="jar_nogui" jarfile="${dist}/RPlayNoGui.jar">
 			<classpath>
-  				<fileset dir="${dist_lib}">
+  				<fileset dir="${dist}/lib">
   					<include name="**/*.jar"/>
    				</fileset>	
 			</classpath>
 		</manifestclasspath>
-		<jar destfile="${dist_jar}">
+		<jar destfile="${dist}/RPlayNoGui.jar">
 			<fileset dir="${bin}"/>
 			<manifest>
-				<attribute name="Main-Class" value="Rplay"/>
+				<attribute name="Main-Class" value="RPlayNoGui"/>
 				<attribute name="Class-Path" value="${jar_cp}" />
 			</manifest>
 		</jar>
-
-		<mkdir dir="${dist_lib}"/>
-		<copy todir="${dist_lib}" flatten="true">
-			<path refid="lib_cp" />
-		</copy>
+		
+		<manifestclasspath property="jar_gui" jarfile="${dist}/RPlay.jar">
+			<classpath>
+  				<fileset dir="${dist}/lib">
+  					<include name="**/*.jar"/>
+   				</fileset>	
+			</classpath>
+		</manifestclasspath>
+		<jar destfile="${dist}/RPlay.jar">
+			<fileset dir="${bin}"/>
+			<manifest>
+				<attribute name="Main-Class" value="RPlay"/>
+				<attribute name="Class-Path" value="${jar_cp}" />
+			</manifest>
+		</jar>
 	</target>
 	
 	<target name="run">
-		<!--
 		<java fork="true" classname="RPlayNoGui">
-			<classpath path="${dist_jar}"/>
+			<classpath path="${dist}/RPlayNoGui.jar"/>
 			<arg value="myAirport"/>
 		</java>
-		-->
-		<java fork="true" classname="Rplay">
-			<classpath path="${dist_jar}"/>
+		<java fork="true" classname="RPlay">
+			<classpath path="${dist}/RPlay.jar"/>
 		</java>
 	</target>
 
