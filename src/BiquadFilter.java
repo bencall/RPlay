@@ -6,9 +6,9 @@
 public class BiquadFilter {
     double bf_playback_rate = 1.0;
     double bf_est_drift = 0.0;   // local clock is slower by
-    biquad_t bf_drift_lpf;
+    Biquad_t bf_drift_lpf;
     double bf_est_err = 0.0, bf_last_err;
-    biquad_t bf_err_lpf, bf_err_deriv_lpf;
+    Biquad_t bf_err_lpf, bf_err_deriv_lpf;
     double desired_fill;
     int fill_count;
     int sampling_rate;
@@ -31,8 +31,8 @@ public class BiquadFilter {
         fill_count = 0;
     }
      
-    private biquad_t biquad_lpf(double freq, double Q) {
-        biquad_t ret = new biquad_t();
+    private Biquad_t biquad_lpf(double freq, double Q) {
+        Biquad_t ret = new Biquad_t();
          
         double w0 = 2*Math.PI*freq/((float)sampling_rate/(float)frame_size);
         double alpha = Math.sin(w0)/(2.0*Q);
@@ -64,7 +64,7 @@ public class BiquadFilter {
         bf_last_err = bf_est_err;
     }
      
-    private double filter(biquad_t bq, double in) {
+    private double filter(Biquad_t bq, double in) {
         double w = in - bq.a[0]*bq.hist[0] - bq.a[1]*bq.hist[1];
 //      double out  = bq.b[1]*bq.hist[0] + bq.b[2]*bq.hist[1] + bq.b[0]*w;
         bq.hist[1] = bq.hist[0];

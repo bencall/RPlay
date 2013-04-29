@@ -25,7 +25,7 @@ public class Window implements ActionListener{
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		new Rplay();
+		new RPlay();
 	}
 	
 	public Window(){		
@@ -45,7 +45,7 @@ public class Window implements ActionListener{
 		nameField = new JTextField(apname,15);
 		bouton = new JButton("Start Airport Express");
 		bouton.addActionListener(this);
-		contenu.add(new JLabel("AP Name: "));
+		contenu.add(new JLabel("AP name: "));
 		contenu.add(nameField);
 		contenu.add(bouton);
 		
@@ -61,19 +61,19 @@ public class Window implements ActionListener{
 	@Override
 	public void actionPerformed(ActionEvent arg0) {
 		if(!on){
-			on = true;
-			
 			t = new LaunchThread(nameField.getText());
 			t.start();
-			bouton.setText("Stop Airport Express");
 			
+			on = true;
 			prefs.put("apname", nameField.getText());
 			prefs.putBoolean("launched", true); // Used on next launch
+			bouton.setText("Stop Airport Express");
 		} else {
-			on = false;
 			t.stopThread();
-			bouton.setText("Start Airport Express");
+			
+			on = false;
 			prefs.putBoolean("launched", false); // Used on next launch
+			bouton.setText("Start Airport Express");
 		}
 	}
 
