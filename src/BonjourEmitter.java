@@ -1,36 +1,34 @@
-import com.apple.dnssd.DNSSD;
-import com.apple.dnssd.DNSSDException;
-import com.apple.dnssd.DNSSDRegistration;
-import com.apple.dnssd.DNSSDService;
-import com.apple.dnssd.RegisterListener;
-import com.apple.dnssd.TXTRecord;
+import java.util.*;
+import javax.jmdns.*;
+import java.io.IOException;
 
 /**
  * Emetteur Bonjour pour qu'iTunes detecte la borne airport
- * Needs Bonjour for Windows (apple.com)
  * @author bencall
  *
  */
 
 //
-public class BonjourEmitter implements RegisterListener{
-	DNSSDRegistration r;
+public class BonjourEmitter {
+	JmDNS jmdns;
 	
-	public BonjourEmitter(String name, String identifier, int port) throws DNSSDException{
-		    TXTRecord txtRecord = new TXTRecord();
-		    txtRecord.set("txtvers", "1");
-		    txtRecord.set("pw", "false");
-		    txtRecord.set("sr", "44100");
-		    txtRecord.set("ss", "16");
-		    txtRecord.set("ch", "2");
-		    txtRecord.set("tp", "UDP");
-		    txtRecord.set("sm", "false");
-		    txtRecord.set("sv", "false");
-		    txtRecord.set("ek", "1");
-		    txtRecord.set("et", "0,1");
-		    txtRecord.set("cn", "0,1");
-		    txtRecord.set("vn", "3");
-		    		    
+	public BonjourEmitter(String name, String identifier, int port, boolean pass) throws IOException {
+
+			// Set up TXT Record	    
+		    Map<String,Object> txtRec = new HashMap<String,Object>();
+		    txtRec.put("txtvers", "1");
+		    txtRec.put("pw", String.valueOf(pass));
+		    txtRec.put("sr", "44100");
+		    txtRec.put("ss", "16");
+		    txtRec.put("ch", "2");
+		    txtRec.put("tp", "UDP");
+		    txtRec.put("sm", "false");
+		    txtRec.put("sv", "false");
+		    txtRec.put("ek", "1");
+		    txtRec.put("et", "0,1");
+		    txtRec.put("cn", "0,1");
+		    txtRec.put("vn", "3");
+		    		   
 		    // Il faut un serial bidon pour se connecter
 		    if (identifier == null){
 		    	identifier = "";
@@ -39,33 +37,18 @@ public class BonjourEmitter implements RegisterListener{
 		    	}
 		    }
 
-		    // Zeroconf registration
-		    r = DNSSD.register(0, 0, identifier+"@"+name, "_raop._tcp", null, null, port, txtRecord, this);
-		    
+			// Zeroconf registration
+			jmdns = JmDNS.create();
+			ServiceInfo serviceInfo = ServiceInfo.create("_raop._tcp.local.", identifier + "@" + name, port, 0, 0, txtRec);
+            jmdns.registerService(serviceInfo);
 	}
 
 	/**
 	 * Stop service publishing
 	 */
-	public void stop(){
-		r.stop();
-	}
-	
-	/**
-	 * Registration failed
-	 */
-	public void operationFailed(DNSSDService service, int errorCode) {
-	    System.out.println("Registration failed " + errorCode); 		
-	}
-
-	/**
-	 * Confirmation that registration is ok
-	 */
-	 // Display registered name on success 
-	 public void serviceRegistered(DNSSDRegistration registration, int flags, String serviceName, String regType, String domain){ 
-	    System.out.println("Registered Name  : " + serviceName); 
-	    System.out.println("           Type  : " + regType); 
-	    System.out.println("           Domain: " + domain); 
-	 } 
+	public void stop() throws IOException {
+		jmdns.unregisterAllServices();
+		jmdns.close();
+	} 
 }
 

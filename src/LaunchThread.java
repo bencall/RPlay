@@ -7,8 +7,6 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 
-import com.apple.dnssd.DNSSDException;
-
 
 /**
  * LaunchThread class which starts services
@@ -57,7 +55,25 @@ public class LaunchThread extends Thread{
 	}
 	
 	
-	public void run(){
+	public void run() {
+		// Setup safe shutdown
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+   			@Override
+   			public void run() {
+   				System.out.println("forced shutdown!");
+   				
+    			LaunchThread.this.stopThread();
+    			
+    			try {
+	    			sleep(1000);
+    			} catch(java.lang.InterruptedException e) {
+    				//
+    			}	    			
+    			
+    			System.out.println("done.");
+   			}
+  		});
+		
 		System.out.println("service started.");
 		int port = 5000;
 		
@@ -85,9 +101,6 @@ public class LaunchThread extends Thread{
 				}
 			}
 
-		} catch (DNSSDException e) {
-			throw new RuntimeException(e);
-			
 		} catch (IOException e) {
 			throw new RuntimeException(e);
 			
