@@ -7,17 +7,16 @@ import java.net.SocketException;
 import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 
-import com.apple.dnssd.DNSSDException;
-
 
 /**
  * LaunchThread class which starts services
  * @author bencall
  *
  */
-public class LaunchThread extends Thread{
+public class LaunchThread extends Thread {
 	private BonjourEmitter emitter;
 	private String name;
+	private String password;
 	private boolean stopThread = false;
 	
 	/**
@@ -27,6 +26,16 @@ public class LaunchThread extends Thread{
 	public LaunchThread(String name){
 		super();
 		this.name = name;
+	}
+	
+	/**
+	 * Constructor
+	 * @param name
+	 */
+	public LaunchThread(String name, String pass){
+		super();
+		this.name = name;
+		this.password = pass;
 	}
 	
 	private byte[] getHardwareAdress() {
@@ -57,7 +66,25 @@ public class LaunchThread extends Thread{
 	}
 	
 	
-	public void run(){
+	public void run() {
+		// Setup safe shutdown
+		Runtime.getRuntime().addShutdownHook(new Thread() {
+   			@Override
+   			public void run() {
+   				System.out.println("forced shutdown!");
+   				
+    			LaunchThread.this.stopThread();
+    			
+    			try {
+	    			sleep(1000);
+    			} catch(java.lang.InterruptedException e) {
+    				//
+    			}	    			
+    			
+    			System.out.println("done.");
+   			}
+  		});
+		
 		System.out.println("service started.");
 		int port = 5000;
 		
@@ -72,23 +99,32 @@ public class LaunchThread extends Thread{
 
 			// DNS Emitter (Bonjour)
 			byte[] hwAddr = getHardwareAdress();
-			emitter = new BonjourEmitter(name, getStringHardwareAdress(hwAddr), port);
+						
+			// Check if password is set
+			if(password == null)
+				emitter = new BonjourEmitter(name, getStringHardwareAdress(hwAddr), port, false);
+			else
+				emitter = new BonjourEmitter(name, getStringHardwareAdress(hwAddr), port, true);
 			
 			servSock.setSoTimeout(1000);
+						
 			while (!stopThread) {
 				try {
 					Socket socket = servSock.accept();
 					System.out.println("got connection from " + socket.toString());
-					new RTSPResponder(hwAddr, socket).start();
+					
+					// Check if password is set
+					if(password == null)
+						new RTSPResponder(hwAddr, socket).start();
+					else
+						new RTSPResponder(hwAddr, socket, password).start();
 				} catch(SocketTimeoutException e) {
 					// ignore
 				}
 			}
 
-		} catch (DNSSDException e) {
-			throw new RuntimeException(e);
-			
 		} catch (IOException e) {
+			System.out.println("Something is wrong...");
 			throw new RuntimeException(e);
 			
 		} finally {

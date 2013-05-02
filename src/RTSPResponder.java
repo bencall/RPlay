@@ -14,6 +14,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.crypto.Cipher;
+import java.security.MessageDigest;
+import java.math.BigInteger;
 
 import org.apache.commons.codec.binary.Base64;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
@@ -25,7 +27,7 @@ import org.bouncycastle.openssl.PEMReader;
  * @author bencall
  *
  */
-public class RTSPResponder extends Thread{
+public class RTSPResponder extends Thread {
 
 	private Socket socket;					// Connected socket
 	private int[] fmtp;
@@ -33,6 +35,11 @@ public class RTSPResponder extends Thread{
 	private AudioServer serv; 				// Audio listener
 	byte[] hwAddr;
 	private BufferedReader in;
+	private String password;
+	private RTSPResponse response;
+	
+	// Pre-define patterns
+	private static final Pattern authPattern = Pattern.compile("Digest username=\"(.*)\", realm=\"(.*)\", nonce=\"(.*)\", uri=\"(.*)\", response=\"(.*)\"");
 	private static final Pattern completedPacket = Pattern.compile("(.*)\r\n\r\n");
 
 	private static final String key =  
@@ -66,13 +73,57 @@ public class RTSPResponder extends Thread{
 		in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 	}
 
+	public RTSPResponder(byte[] hwAddr, Socket socket, String pass) throws IOException {
+		this.hwAddr = hwAddr;
+		this.socket = socket;
+		this.password = pass;
+		in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+	}
 
 	public RTSPResponse handlePacket(RTSPPacket packet){
-		// We init the response holder
-		RTSPResponse response = new RTSPResponse("RTSP/1.0 200 OK");
-		response.append("Audio-Jack-Status", "connected; type=analog");
-		response.append("CSeq", packet.valueOfHeader("CSeq"));
+		System.out.println(password);
+		if(password == null) {
+			// No pass = ok!
+			response = new RTSPResponse("RTSP/1.0 200 OK");
+			response.append("Audio-Jack-Status", "connected; type=analog");
+			response.append("CSeq", packet.valueOfHeader("CSeq"));
+		} else {
+			// Default response (deny, deny, deny!)
+			response = new RTSPResponse("RTSP/1.0 401 UNAUTHORIZED");
+			response.append("WWW-Authenticate", "Digest realm=\"*\" nonce=\"*\"");
+			response.append("Method", "DENIED");
 
+			String authRaw = packet.valueOfHeader("Authorization");
+			
+			// If supplied, check response
+			if(authRaw != null) {
+	        	Matcher auth = authPattern.matcher(authRaw);
+	        
+	        	if (auth.find()) {
+	   	    		String username = auth.group(1);
+	   	 	   		String realm = auth.group(2);
+	   	   		 	String nonce = auth.group(3);
+	   	    		String uri = auth.group(4);
+	   	    		String resp = auth.group(5);
+	  	          	String method = packet.getReq();
+	  	          	
+	  	          	String hash1 = md5Hash(username+":"+realm+":"+password).toUpperCase();
+	  	          	String hash2 = md5Hash(method+":"+uri).toUpperCase();
+	  	          	String hash = md5Hash(hash1+":"+nonce+":"+hash2).toUpperCase();
+	  	          	
+	  	          	// Check against password
+	  	          	if(hash.equals(resp)) {
+						// Success!
+	  	          		response = new RTSPResponse("RTSP/1.0 200 OK");
+						response.append("Audio-Jack-Status", "connected; type=analog");
+						response.append("CSeq", packet.valueOfHeader("CSeq"));
+	  	          	}
+	        	}
+			}
+		}
+        
+        
+        
 		// Apple Challenge-Response field if needed
     	String challenge;
     	if( (challenge = packet.valueOfHeader("Apple-Challenge")) != null){
@@ -201,6 +252,33 @@ public class RTSPResponder extends Thread{
     	// We close the response
     	response.finalize();
     	return response;
+	}
+
+	/**
+	 * Generates md5 hash of a string.
+	 * @param plaintext string
+	 * @return hash string
+	 */
+	public String md5Hash(String plaintext) {
+		String hashtext = "";
+		
+		try {
+			MessageDigest md = MessageDigest.getInstance("MD5");
+			md.update(plaintext.getBytes());
+			byte[] digest = md.digest();
+		
+			BigInteger bigInt = new BigInteger(1,digest);
+			hashtext = bigInt.toString(16);
+		
+			// Now we need to zero pad it if you actually want the full 32 chars.
+			while(hashtext.length() < 32 ) {
+  				hashtext = "0"+hashtext;
+			}
+		} catch(java.security.NoSuchAlgorithmException e) {
+			//
+		}
+		
+		return hashtext;
 	}
 
 	/**

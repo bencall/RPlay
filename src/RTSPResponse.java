@@ -25,7 +25,7 @@ public class RTSPResponse {
 	
 	@Override
 	public String toString() {
-		return " > " + response.toString().replaceAll("\r\n", "\r\n > ");
+		return " -> " + response.toString().replaceAll("\r\n", "\r\n -> ");
 	}
 	
 }

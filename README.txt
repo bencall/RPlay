@@ -1,4 +1,4 @@
-RPlay v0.01a
+RPlay v0.02
 ==============
 Benjamin de Callatay <bencall@hotmail.com>
 April 22, 2011
@@ -10,7 +10,7 @@ It emulates an Airport Express for the purpose of streaming music from iTunes an
 
 Installation
 ------------
-Double clicking on RPlay.jar in the binaries folder should be enough...
+Double clicking on RPlay.jar in the DIST folder should be enough...
 
 Thanks
 ------
@@ -42,6 +42,7 @@ Changelog
     * initial release: able to communicate with iTunes (RTSP server ok)
 * 0.01b  May 01, 2011
     * First working version. Still buggy. Usable.   
-* 0.01   May 06, 2011
+* 0.01c   May 06, 2011
     * First binary version. Need feedback.
-
+* 0.02    April 29, 2013
+    * Fixed auto-startup and enabled RPlayNoGui.jar.
