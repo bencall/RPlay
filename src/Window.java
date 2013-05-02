@@ -15,7 +15,7 @@ import java.util.prefs.Preferences;
  */
 
 //
-public class Window implements ActionListener{
+public class Window implements ActionListener {
 	private JButton startButton;
 	private JButton stopButton;
 	private JTextField nameField;

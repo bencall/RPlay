@@ -86,6 +86,6 @@ public class RTSPPacket {
 	
 	@Override
 	public String toString() {
-		return " < " + rawPacket.replaceAll("\r\n", "\r\n < ");
+		return " <- " + rawPacket.replaceAll("\r\n", "\r\n <- ");
 	}
 }

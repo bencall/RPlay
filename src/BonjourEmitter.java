@@ -30,11 +30,10 @@ public class BonjourEmitter {
 		    txtRec.put("vn", "3");
 		    		   
 		    // Il faut un serial bidon pour se connecter
-		    if (identifier == null){
+		    if (identifier == null) {
 		    	identifier = "";
-		    	for(int i=0; i<6; i++){
+		    	for(int i=0; i<6; i++)
 		    		identifier = identifier + Integer.toHexString((int) (Math.random()*255)).toUpperCase();
-		    	}
 		    }
 
 			// Zeroconf registration
