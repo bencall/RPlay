@@ -80,8 +80,8 @@ public class RTSPResponder extends Thread {
 		in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
 	}
 
-	public RTSPResponse handlePacket(RTSPPacket packet){
-		System.out.println(password);
+	public RTSPResponse handlePacket(RTSPPacket packet) {
+
 		if(password == null) {
 			// No pass = ok!
 			response = new RTSPResponse("RTSP/1.0 200 OK");
