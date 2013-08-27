@@ -1,6 +1,6 @@
 RPlay v0.03
 ==============
-Benjamin de Callatay <bencall@hotmail.com>
+Benjamin de Callatay
 April 22, 2011
 
 What it is
