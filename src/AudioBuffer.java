@@ -1,11 +1,11 @@
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import com.beatofthedrum.alacdecoder.AlacDecodeUtils;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
-
-import com.beatofthedrum.alacdecoder.AlacDecodeUtils;
+import java.util.concurrent.locks.Condition;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * A ring buffer where every frame is decrypted, decoded and stored
@@ -19,9 +19,12 @@ public class AudioBuffer {
 	public static final int START_FILL = 282;		// Alac will wait till there are START_FILL frames in buffer
 	public static final int MAX_PACKET = 2048;		// Also in UDPListener (possible to merge it in one place?)
 
-	// The lock for writing/reading concurrency
-    private final Lock lock = new ReentrantLock();    
-    
+	// The Lock for the next Frame Method
+	final Lock nextFrameLock = new ReentrantLock();
+	final Condition nextFrameIsWaiting = nextFrameLock.newCondition();
+
+	//the lock for the audiobuffer
+	final Lock audioBufferLock = new ReentrantLock();
     // The array that represents the buffer
 	private AudioData[] audioBuffer;
 	
@@ -32,10 +35,14 @@ public class AudioBuffer {
 	AudioSession session;
 	
 	// The seqnos at which we read and write
-	private int readIndex;							
-	private int writeIndex;
-	private int actualBufSize;						// The number of packet in buffer
-	private boolean decoder_isStopped = false;		//The decoder stops 'cause the isn't enough packet. Waits till buffer is ok
+	//used to track overrunning the buffer
+	//index of the buffer
+	private int readIndex = 0;
+	//seqno
+	private int readSeqno = -1;
+	private int writeIndex = 0;
+	//The decoder stops 'cause the isn't enough packet. Waits till buffer is ok
+	private boolean decoder_isStopped = false;
 	
 	// RSA-AES decryption infos
 	private SecretKeySpec k;
@@ -55,29 +62,21 @@ public class AudioBuffer {
 		this.server = server;
 		
 		audioBuffer = new AudioData[BUFFER_FRAMES];
-		for (int i = 0; i< BUFFER_FRAMES; i++){
-			audioBuffer[i] = new AudioData();
-			audioBuffer[i].data = new int[session.OUTFRAME_BYTES()];	// = OUTFRAME_BYTES = 4(frameSize+3)
-		}
 	}
 		
 	/**
-	 * Sets the packets as not ready. Audio thread will only listen to ready packets.
+	 * Sets the read index to the write index. All the data will be ignored.
 	 * No audio more.
 	 */
 	public void flush(){
-		for (int i = 0; i< BUFFER_FRAMES; i++){
-			audioBuffer[i].ready = false;
-			synced = false;
-		}
+		readIndex = writeIndex;
 	}
-	
 	
 	/**
 	 * Returns the next ready frame. If none, waiting for one
-	 * @return
+	 * @return the next frame
 	 */
-	public int[] getNextFrame(){
+	public int[] getNextFrame() throws InterruptedException {
 	    synchronized (lock) {	    	
 			actualBufSize = writeIndex-readIndex;	// Packets in buffer
 		    if(actualBufSize<0){	// If loop
@@ -101,46 +100,37 @@ public class AudioBuffer {
 					// Underrun: stream reset
 					session.resetFilter();
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					throw e;
 				}
 				
 				return null;
+			} else {
+				readSeqno = audioData.getSequenceNumber();
+				return audioData.getData();
 			}
-			
-			// Overrunning. Restart at a sane distance
-		    if (actualBufSize >= BUFFER_FRAMES) {   // overrunning! uh-oh. restart at a sane distance
-				System.err.println("Overrun!!! Too much frames in buffer!");
-		        readIndex = writeIndex - START_FILL;
-		    }
-			// we get the value before the unlock ;-)
-		    int read = readIndex;
-		    readIndex++;
-		     
-		    // If loop
-		    actualBufSize = writeIndex-readIndex;
-		    if(actualBufSize<0){
-		    	actualBufSize = 65536-readIndex+ writeIndex;
-		    }
-		    
-		    session.updateFilter(actualBufSize); 
-		    
-		    AudioData buf = audioBuffer[read % BUFFER_FRAMES];
-		    
-		    if(!buf.ready){
-		    	System.err.println("Missing Frame!");
-		    	// Set to zero then
-		    	for(int i=0; i<buf.data.length; i++){
-		    		buf.data[i] = 0;
-		    	}
-		    }
-		    buf.ready = false;
-		    
-		    // SEQNO is stored in a short an come back to 0 when equal to 65536 (2 bytes)
-		    if(readIndex == 65536){
-		    	readIndex = 0;
-		    }
-			return buf.data;
+		} catch (IndexOutOfBoundsException e) {
+			// If it' because there is not enough packets
+			if(synced){
+				System.err.println("Underrun!!! Not enough frames in buffer!");
+			}
+			// We say the decoder is stopped and we wait for signal
+			System.err.println("Waiting");
+			decoder_isStopped = true;
+			nextFrameLock.lock();
+			try {
+				nextFrameIsWaiting.await();
+			} catch (InterruptedException e1) {
+				e1.printStackTrace();
+			} finally {
+				nextFrameLock.unlock();
+			}
+			decoder_isStopped = false;
+			System.err.println("re-starting");
+			readIndex++;	// We read next packet
 
+			// Underrun: stream reset
+			session.resetFilter();
+			return null;
 		}
 	}
 	
@@ -154,13 +144,13 @@ public class AudioBuffer {
 	    // Ring buffer may be implemented in a Hashtable in java (simplier), but is it fast enough?		
 		// We lock the thread
 		synchronized(lock){
-		
+
 			if(!synced){
 				writeIndex = seqno;
 				readIndex = seqno;
 				synced = true;
 			}
-	
+
 			@SuppressWarnings("unused")
 			int outputSize = 0;
 			if (seqno == writeIndex){													// Packet we expected
@@ -178,21 +168,40 @@ public class AudioBuffer {
 			} else {
 				System.err.println("Late packet with seq. numb.: " + seqno);			// Really to late
 			}
-			
-			// The number of packet in buffer
-		    actualBufSize = writeIndex - readIndex;
-		    if(actualBufSize<0){
-		    	actualBufSize = 65536-readIndex+ writeIndex;
-		    }
-		    
-		    if(decoder_isStopped && actualBufSize > START_FILL){
-			    lock.notify();
-		    }
-		    
-		    // SEQNO is stored in a short an come back to 0 when equal to 65536 (2 bytes)
-		    if(writeIndex == 65536){
-		    	writeIndex = 0;
-		    }
+		}
+		for (int i = (readIndex + 1) ; i < limit; i++) {
+			AudioData audioData = audioBuffer[i];
+			if (audioData.getSequenceNumber() > readSeqno)
+				count++;
+		}
+		audioBufferLock.unlock();
+		return count;
+	}
+
+	/**
+	 * returns the next AudioData
+	 * @return null if empty or an instance of AudioData
+	 */
+	private synchronized AudioData poll() throws IndexOutOfBoundsException{
+		if (readIndex >= writeIndex)
+			throw new IndexOutOfBoundsException();
+		audioBufferLock.lock();
+		AudioData audioData = audioBuffer[readIndex];
+		audioBuffer[readIndex] = null;
+		audioBufferLock.unlock();
+		readIndex = increment(readIndex);
+		return audioData;
+	}
+
+	/**
+	 * increments the index to comply with the ringbuffer (start at 0 if index == BUFFER_FRAMES)
+	 * @return the incremented integer
+	 */
+	private int increment(int index) {
+		if (index < BUFFER_FRAMES) {
+			return index +1;
+		} else {
+			return 0;
 		}
 	}
 	
@@ -261,8 +270,6 @@ public class AudioBuffer {
 		
 		return -1;
 	}
-	
-	
 	
 
 }
