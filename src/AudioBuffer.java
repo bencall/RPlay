@@ -20,19 +20,19 @@ public class AudioBuffer {
     public static final int MAX_PACKET = 2048;		// Also in UDPListener (possible to merge it in one place?)
 
     // The Lock for the next Frame Method
-    final Lock nextFrameLock = new ReentrantLock();
-    final Condition nextFrameIsWaiting = nextFrameLock.newCondition();
+    private final Lock nextFrameLock = new ReentrantLock();
+    private final Condition nextFrameIsWaiting = nextFrameLock.newCondition();
 
     //the lock for the audiobuffer
-    final Lock audioBufferLock = new ReentrantLock();
+    private final Lock audioBufferLock = new ReentrantLock();
     // The array that represents the buffer
-    private AudioData[] audioBuffer;
+    private final AudioData[] audioBuffer;
 
     // Can we read in buffer?
-    private boolean synced = false;
+    private final boolean synced = false;
 
     //Audio infos (rate, etc...)
-    AudioSession session;
+    private final AudioSession session;
 
     // The seqnos at which we read and write
     //used to track overrunning the buffer
@@ -41,6 +41,8 @@ public class AudioBuffer {
     //seqno
     private int readSeqno = -1;
     private int writeIndex = 0;
+    //seqno
+    private int writSeqno = -1;
     //The decoder stops 'cause the isn't enough packet. Waits till buffer is ok
     private boolean decoder_isStopped = false;
 
@@ -49,7 +51,7 @@ public class AudioBuffer {
     private Cipher c;
 
     // Needed for asking missing packets
-    AudioServer server;
+    final AudioServer server;
 
 
     /**
@@ -118,9 +120,7 @@ public class AudioBuffer {
      * @param seqno	seqno of the given packet. Used as index
      * @param data
      */
-    public void putPacketInBuffer(int seqno, byte[] data){
-        // Ring buffer may be implemented in a Hashtable in java (simplier), but is it fast enough?
-
+    public void putPacketInBuffer(int seqno, byte[] data) {
         int[] decoded = new int[session.OUTFRAME_BYTES()];
         int outputSize = this.alac_decode(data, decoded);
         AudioData audioData = new AudioData(decoded, seqno);
@@ -149,12 +149,16 @@ public class AudioBuffer {
         if (seqno < readSeqno) {
             throw new IndexOutOfBoundsException();
         }
+        if (seqno != readSeqno +1) {
+            server.request_resend(writeIndex, seqno);
+        }
         int index = seqno % BUFFER_FRAMES;
         try {
             audioBufferLock.lock();
             audioBuffer[index] = audioData;
         } finally {
             audioBufferLock.unlock();
+            writSeqno = seqno;
         }
         if (index > writeIndex)
             writeIndex = index;
@@ -239,9 +243,7 @@ public class AudioBuffer {
         }
 
         // The rest of the packet is unencrypted
-        for (int k = 0; k<(data.length % 16); k++){
-            packet[i+k] = data[i+k];
-        }
+        System.arraycopy(data, i + 0, packet, i + 0, data.length % 16);
 
         int outputsize = 0;
         outputsize = AlacDecodeUtils.decode_frame(session.getAlac(), packet, outbuffer, outputsize);
