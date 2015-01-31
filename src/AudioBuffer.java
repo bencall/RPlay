@@ -150,9 +150,12 @@ public class AudioBuffer {
             throw new IndexOutOfBoundsException();
         }
         int index = seqno % BUFFER_FRAMES;
-        audioBufferLock.lock();
-        audioBuffer[index] = audioData;
-        audioBufferLock.unlock();
+        try {
+            audioBufferLock.lock();
+            audioBuffer[index] = audioData;
+        } finally {
+            audioBufferLock.unlock();
+        }
         if (index > writeIndex)
             writeIndex = index;
     }
@@ -163,22 +166,25 @@ public class AudioBuffer {
      */
     private int calculateActualBufferSize() {
         int count = 0;
-        audioBufferLock.lock();
-        int limit = writeIndex;
-        if (writeIndex < readIndex) {
-            limit = BUFFER_FRAMES;
-            for (int i = 0; i < writeIndex; i++) {
+        try {
+            audioBufferLock.lock();
+            int limit = writeIndex;
+            if (writeIndex < readIndex) {
+                limit = BUFFER_FRAMES;
+                for (int i = 0; i < writeIndex; i++) {
+                    AudioData audioData = audioBuffer[i];
+                    if (audioData.getSequenceNumber() > readSeqno)
+                        count++;
+                }
+            }
+            for (int i = (readIndex + 1) ; i < limit; i++) {
                 AudioData audioData = audioBuffer[i];
-                if (audioData.getSequenceNumber() > readSeqno)
+                if (audioData != null && audioData.getSequenceNumber() > readSeqno)
                     count++;
             }
+        } finally {
+            audioBufferLock.unlock();
         }
-        for (int i = (readIndex + 1) ; i < limit; i++) {
-            AudioData audioData = audioBuffer[i];
-            if (audioData.getSequenceNumber() > readSeqno)
-                count++;
-        }
-        audioBufferLock.unlock();
         return count;
     }
 
@@ -189,10 +195,14 @@ public class AudioBuffer {
     private synchronized AudioData poll() throws IndexOutOfBoundsException{
         if (readIndex >= writeIndex)
             throw new IndexOutOfBoundsException();
-        audioBufferLock.lock();
-        AudioData audioData = audioBuffer[readIndex];
-        audioBuffer[readIndex] = null;
-        audioBufferLock.unlock();
+        AudioData audioData;
+        try {
+            audioBufferLock.lock();
+            audioData = audioBuffer[readIndex];
+            audioBuffer[readIndex] = null;
+        } finally {
+            audioBufferLock.unlock();
+        }
         readIndex = increment(readIndex);
         return audioData;
     }
